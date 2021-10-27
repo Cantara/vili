@@ -1,0 +1,5 @@
+vili
+*.sh
+*.pem
+.env
+*.log
