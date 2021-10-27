@@ -19,10 +19,13 @@ func tailFile(path string, ctx context.Context) (lineChan chan []byte, err error
 	}
 	err = watcher.AddWatch(folder, inotify.InMovedFrom|inotify.InCreate)
 	if err != nil {
+		watcher.Close()
 		return
 	}
 	lineChan = make(chan []byte, 20)
 	go func() {
+		defer watcher.Close()
+		defer watcher.RemoveWatch(folder)
 		r, file, err := newFileWatcherAndReader(path, watcher)
 		if err == nil {
 			defer watcher.RemoveWatch(path)

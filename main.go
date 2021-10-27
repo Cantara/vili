@@ -40,7 +40,7 @@ func (s serve) reliabilityScore(compServ *serve) float64 {
 }
 
 func (s serve) internalReliabilityScore() float64 {
-	return float64(s.requests) / float64(s.errors*10+s.warnings)
+	return float64(s.requests) / float64(s.errors*10+s.warnings+1)
 }
 
 var runningServer *serve
@@ -97,6 +97,7 @@ func main() {
 						return
 					}
 					testingServer.requests++
+					log.Println("reliabilityScore of testingServer compared to runningServer: ", testingServer.reliabilityScore(runningServer))
 					if testingServer.reliabilityScore(runningServer) > 1 {
 						deploy(&runningServer, &testingServer)
 					}
@@ -109,6 +110,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	defer watcher.Close()
 	wd, err := os.Getwd()
 	if err != nil {
 		log.Fatal(err)
@@ -293,25 +295,19 @@ func createNewServerStructure(server string) (newFolder string, err error) { // 
 	return
 }
 
-// This might be a better implementation?
-/*func createNewServerStructure(server) (name string, err error) { // This could do with some error handling instead of just panic
-	path := strings.Split(server, "/")
-	name := path[len(path)-1][:len(path[len(path)-1])-4]
-	//newInstancePath = fmt.Sprintf("%s-%d", serverPath, numRestartsOfType(serverPath, t)+1)
-	err = os.Mkdir(name, 0755)
-	//if err != nil {
-	//	return
-	//}
-	//newFilePath := fmt.Sprintf("%s/%s.jar", newInstancePath, os.Getenv("identifier"))
-	//err = os.Symlink(server, newFilePath)
-	return
-}*/
-
 func createNewServerInstanceStructure(server, t string) (newInstancePath string, err error) { // This could do with some error handling instead of just panic
 	// path := strings.Split(server, "/")
 	// serverName := fmt.Sprintf("%s.jar", path[len(path)-1])
 	newInstancePath = fmt.Sprintf("%s/%s-%d", server, t, numRestartsOfType(server, t)+1)
 	err = os.Mkdir(newInstancePath, 0755)
+	if err != nil {
+		return
+	}
+	err = os.Mkdir(newInstancePath+"/logs", 0755)
+	if err != nil {
+		return
+	}
+	err = os.Mkdir(newInstancePath+"/logs/json", 0755)
 	if err != nil {
 		return
 	}
@@ -347,7 +343,7 @@ func startNewServer(serverFolder string) *serve {
 		pid.Close()
 	}
 	time.Sleep(time.Second * 2) //Sleep an arbitrary amout of time so the service can start without getting any new request, this should not be needed
-	return &serve{
+	server := &serve{
 		port:   port,
 		server: cmd,
 		ctx:    ctx,
@@ -357,6 +353,8 @@ func startNewServer(serverFolder string) *serve {
 			stdErr.Close()
 		},
 	}
+	go parseLogServer(server, ctx)
+	return server
 }
 
 func numRestartsOfType(dir, t string) (num int) {
@@ -455,17 +453,62 @@ func getPort() string {
 	return port.Value.(string)
 }
 
-func tailFile(path string) (err error) {
+type logData struct {
+	Level string `json:"level"`
+}
+
+func parseLogServer(server *serve, ctx context.Context) {
+	lineChan, err := tailFile(fmt.Sprintf("%s/logs/json/%s.log", server.server.Dir, os.Getenv("identifier")), ctx)
+	if err != nil {
+		log.Println(err) //TODO look into what can be done here
+		return
+	}
+	for {
+		select {
+		case line := <-lineChan:
+			var data logData
+			err := json.Unmarshal(line, &data)
+			if err != nil {
+				log.Println(err)
+				continue
+			}
+			switch data.Level {
+			case "WARN":
+				server.warnings++
+			case "ERROR":
+				server.errors++
+			}
+		case <-ctx.Done():
+			break
+		}
+	}
+}
+
+// This might be a better implementation?
+/*func createNewServerStructure(server) (name string, err error) { // This could do with some error handling instead of just panic
+	path := strings.Split(server, "/")
+	name := path[len(path)-1][:len(path[len(path)-1])-4]
+	//newInstancePath = fmt.Sprintf("%s-%d", serverPath, numRestartsOfType(serverPath, t)+1)
+	err = os.Mkdir(name, 0755)
+	//if err != nil {
+	//	return
+	//}
+	//newFilePath := fmt.Sprintf("%s/%s.jar", newInstancePath, os.Getenv("identifier"))
+	//err = os.Symlink(server, newFilePath)
+	return
+}*/
+
+/* func tailFile(path string) (err error) {
 	watcher, err := inotify.NewWatcher()
 	if err != nil {
 		return
 	}
-	err = watcher.AddWatch(wd, inotify.InCreate)
+	err = watcher.AddWatch(path, inotify.InCreate)
 	if err != nil {
 		return
 	}
 	go func() {
-		defer watcher.RemoveWatch(wd)
+		defer watcher.RemoveWatch(path)
 		for {
 			select {
 			case ev := <-watcher.Event:
@@ -489,34 +532,7 @@ func tailFile(path string) (err error) {
 			}
 		}
 	}()
-}
-
-type logData struct {
-	Level string `json:"level"`
-}
-
-func parseLogServer(server *serve, ctx context.Context) {
-	lineChan, err := tailFile(fmt.Sprintf("%s/logs/json/%s.jar", server.Server.Dir, os.Getenv("identifier")), ctx)
-	for {
-		select {
-		case line := <-lineChan:
-			var data logData
-			err := json.Unmarshal(line, &data)
-			if err != nil {
-				log.Println(err)
-				continue
-			}
-			switch data.Level {
-			case "WARN":
-				server.warnings++
-			case "ERROR":
-				server.Errors++
-			}
-		case <-ctx.Done():
-			break
-		}
-	}
-}
+}*/
 
 /*func pullNewServer(script string) { // return the error instead
 	cmd := exec.Command(script)
@@ -550,4 +566,6 @@ Symlink ifra base folder inn i running folder
 Symlink for både running og test
 
 Copy jar vil inn i versjons mappe også link til den
+
+Look for exceptions in some file
 */
