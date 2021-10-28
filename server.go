@@ -28,22 +28,28 @@ func (s serve) internalReliabilityScore() float64 {
 }
 
 func newServer(path, t string, server **serve) (err error) {
-	newPath, err := createNewServerInstanceStructure(path, t)
+	port := getPort()
+	newPath, err := createNewServerInstanceStructure(path, t, port)
 	if err != nil {
+		availablePorts.PushFront(port)
 		return
 	}
-	log.Println("New path ", newPath)
+
+	s := startNewServer(newPath)
+	if s == nil {
+		availablePorts.PushFront(port)
+		return
+	}
+	s.port = port
 
 	tmp := *server
-	*server = startNewServer(newPath)
+	*server = s
 
 	err = symlinkFolder(path, t)
 	if err != nil {
 		return
 	}
-	//stop tmp
 	if tmp != nil {
-		log.Println("KILLING SERVER")
 		tmp.kill()
 		availablePorts.PushFront(tmp.port)
 	}
@@ -61,9 +67,9 @@ func startNewServer(serverFolder string) *serve {
 		log.Println(err)
 		return nil
 	}
-	port := getPort()
 	ctx, cancel := context.WithCancel(context.Background())
-	cmd := exec.CommandContext(ctx, "java", "-Dserver.port="+port, "-jar", fmt.Sprintf("%s/%s.jar", serverFolder, os.Getenv("identifier")))
+	// cmd := exec.CommandContext(ctx, "java", "-Dserver.port="+port, "-jar", fmt.Sprintf("%s/%s.jar", serverFolder, os.Getenv("identifier"))) //Look into how to override port in config
+	cmd := exec.CommandContext(ctx, "java", "-jar", fmt.Sprintf("%s/%s.jar", serverFolder, os.Getenv("identifier"))) //Look into how to override port in config
 	cmd.Dir = serverFolder
 	log.Println(cmd)
 	err = cmd.Start()
@@ -78,7 +84,6 @@ func startNewServer(serverFolder string) *serve {
 	}
 	time.Sleep(time.Second * 2) //Sleep an arbitrary amout of time so the service can start without getting any new request, this should not be needed
 	server := &serve{
-		port:   port,
 		server: cmd,
 		ctx:    ctx,
 		kill: func() {
