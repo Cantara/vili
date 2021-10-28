@@ -4,27 +4,35 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"math"
 	"os"
 	"os/exec"
+	"sync"
 	"time"
 )
 
 type serve struct { // TODO rename
-	port     string
-	errors   int
-	warnings int
-	requests int
-	server   *exec.Cmd
-	ctx      context.Context
-	kill     func()
+	port       string
+	errors     int
+	warnings   int
+	breaking   int
+	requests   int
+	mesureFrom time.Time
+	server     *exec.Cmd
+	ctx        context.Context
+	once       sync.Once
+	kill       func()
 }
 
 func (s serve) reliabilityScore(compServ *serve) float64 {
+	if time.Now().Sub(s.mesureFrom) < time.Minute*1 {
+		return -1
+	}
 	return s.internalReliabilityScore() - compServ.internalReliabilityScore()
 }
 
 func (s serve) internalReliabilityScore() float64 {
-	return float64(s.requests) / float64(s.errors*10+s.warnings+1)
+	return math.Log2(float64(s.requests) - float64(s.breaking*100+s.errors*10+s.warnings+1))
 }
 
 func newServer(path, t string, server **serve) (err error) {
@@ -42,16 +50,25 @@ func newServer(path, t string, server **serve) (err error) {
 	}
 	s.port = port
 
-	tmp := *server
-	*server = s
+	switch t {
+	case "running":
+		runningServerLock.Lock()
+	case "testing":
+		testingServerLock.Lock()
+	}
+	var oldServer *serve
+	oldServer, *server = *server, s
+	switch t {
+	case "running":
+		runningServerLock.Unlock()
+	case "testing":
+		testingServerLock.Unlock()
+	}
 
 	err = symlinkFolder(path, t)
-	if err != nil {
-		return
-	}
-	if tmp != nil {
-		tmp.kill()
-		availablePorts.PushFront(tmp.port)
+	if oldServer != nil {
+		oldServer.kill()
+		availablePorts.PushFront(oldServer.port)
 	}
 	return
 }
@@ -68,7 +85,6 @@ func startNewServer(serverFolder string) *serve {
 		return nil
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	// cmd := exec.CommandContext(ctx, "java", "-Dserver.port="+port, "-jar", fmt.Sprintf("%s/%s.jar", serverFolder, os.Getenv("identifier"))) //Look into how to override port in config
 	cmd := exec.CommandContext(ctx, "java", "-jar", fmt.Sprintf("%s/%s.jar", serverFolder, os.Getenv("identifier"))) //Look into how to override port in config
 	cmd.Dir = serverFolder
 	log.Println(cmd)

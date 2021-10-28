@@ -11,6 +11,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -22,7 +23,9 @@ type endpointToVerify struct {
 	request     *http.Request
 }
 
+var runningServerLock sync.Mutex
 var runningServer *serve
+var testingServerLock sync.Mutex
 var testingServer *serve
 var availablePorts *list.List
 var endpoint string
@@ -63,6 +66,18 @@ func main() {
 	go func() {
 		for {
 			etv := <-verifyChan
+			if testingServer != nil && testingServer.mesureFrom.IsZero() {
+				testingServer.mesureFrom = time.Now()
+				testingServer.warnings = 0
+				testingServer.errors = 0
+				testingServer.breaking = 0
+				testingServer.requests = 0
+				runningServer.mesureFrom = time.Now()
+				runningServer.warnings = 0
+				runningServer.errors = 0
+				runningServer.breaking = 0
+				runningServer.requests = 0
+			}
 			go func() {
 				if testingServer != nil {
 					rNew, err := requestHandler(endpoint+":"+testingServer.port, etv.request, true)
@@ -72,13 +87,15 @@ func main() {
 					}
 					err = verifyNewResponse(etv.oldResponse, rNew)
 					if err != nil {
-						log.Println(err)
+						testingServer.breaking++
+					}
+					if testingServer.mesureFrom.IsZero() {
 						return
 					}
 					testingServer.requests++
 					log.Println("reliabilityScore of testingServer compared to runningServer: ", testingServer.reliabilityScore(runningServer))
-					if testingServer.reliabilityScore(runningServer) > 1 {
-						deploy(&runningServer, &testingServer)
+					if testingServer.reliabilityScore(runningServer) >= -0.25 {
+						testingServer.once.Do(func() { deploy(&runningServer, &testingServer) })
 					}
 				}
 			}()
@@ -113,10 +130,18 @@ func main() {
 					log.Println(err)
 					continue
 				}
+				oldFolder := ""
+				if testingServer != nil {
+					oldFolder = getBaseFromInstance(testingServer.server.Dir)
+				}
 				err = newServer(path, "test", &testingServer)
 				if err != nil {
 					log.Println(err)
 					continue
+				}
+				err = zipDir(oldFolder)
+				if err != nil {
+					log.Println(err)
 				}
 			case err := <-watcher.Error:
 				log.Println("error:", err)
@@ -176,7 +201,9 @@ func reqHandler(etv chan<- endpointToVerify) http.HandlerFunc {
 			}
 		}
 		io.Copy(w, rOld.Body)
-		runningServer.requests++
+		if !runningServer.mesureFrom.IsZero() {
+			runningServer.requests++
+		}
 		//fmt.Fprintln(w, rOld)
 
 		etv <- endpointToVerify{
@@ -217,25 +244,31 @@ func requestHandler(host string, r *http.Request, test bool) (*http.Response, er
 	return resp, e
 }
 
-func verifyNewResponse(r1, r2 *http.Response) error { // Take inn resonses
-	if r1.StatusCode == r2.StatusCode {
+func verifyNewResponse(r, t *http.Response) error { // Take inn resonses
+	if r.StatusCode == t.StatusCode {
 		return nil
 	}
-	return fmt.Errorf("Not implemented verification")
+	if r.StatusCode != http.StatusNotFound && t.StatusCode == http.StatusNotFound {
+		return fmt.Errorf("Missing endpoint")
+	}
+	return nil
 }
 
 func deploy(running, testing **serve) (err error) {
-	path := strings.Split((*testing).server.Dir, "/")
-	err = newServer(strings.Join(path[:len(path)-1], "/"), "running", testing)
-	//*testing.kill()
-	//availablePorts.PushFront(*testing.port)
-	tmp := *running
-	*running = *testing
+	log.Println("DEPLOYING NEW RUNNING SERVER")
+	testingServerLock.Lock()
+	server := getBaseFromServer((*testing).server.Dir)
+	(*testing).kill()
+	availablePorts.PushFront((*testing).port)
 	*testing = nil
+	testingServerLock.Unlock()
+	oldFolder := getBaseFromServer((*running).server.Dir)
+	err = newServer(server, "running", running) //strings.Join(path[:len(path)-1], "/"), "running", testing)
 
-	log.Println("KILLING OLD RUNNING SERVER")
-	tmp.kill()
-	availablePorts.PushFront(tmp.port)
+	err = zipDir(oldFolder)
+	if err != nil {
+		log.Println(err)
+	}
 	return
 }
 
@@ -258,6 +291,9 @@ func parseLogServer(server *serve, ctx context.Context) {
 	for {
 		select {
 		case line := <-lineChan:
+			if server.mesureFrom.IsZero() {
+				continue
+			}
 			var data logData
 			err := json.Unmarshal(line, &data)
 			if err != nil {
