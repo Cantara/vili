@@ -4,14 +4,11 @@ import (
 	"container/list"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
-	"os/exec"
 	"strconv"
 	"strings"
 	"time"
@@ -23,24 +20,6 @@ import (
 type endpointToVerify struct {
 	oldResponse *http.Response
 	request     *http.Request
-}
-
-type serve struct { // TODO rename
-	port     string
-	errors   int
-	warnings int
-	requests int
-	server   *exec.Cmd
-	ctx      context.Context
-	kill     func()
-}
-
-func (s serve) reliabilityScore(compServ *serve) float64 {
-	return s.internalReliabilityScore() - compServ.internalReliabilityScore()
-}
-
-func (s serve) internalReliabilityScore() float64 {
-	return float64(s.requests) / float64(s.errors*10+s.warnings+1)
 }
 
 var runningServer *serve
@@ -260,193 +239,6 @@ func deploy(running, testing **serve) (err error) {
 	return
 }
 
-func newServer(path, t string, server **serve) (err error) {
-	newPath, err := createNewServerInstanceStructure(path, t)
-	if err != nil {
-		return
-	}
-	log.Println("New path ", newPath)
-
-	tmp := *server
-	*server = startNewServer(newPath)
-
-	err = symlinkFolder(path, t)
-	if err != nil {
-		return
-	}
-	//stop tmp
-	if tmp != nil {
-		log.Println("KILLING SERVER")
-		tmp.kill()
-		availablePorts.PushFront(tmp.port)
-	}
-	return
-}
-
-func createNewServerStructure(server string) (newFolder string, err error) { // This could do with some error handling instead of just panic
-	//path := strings.Split(server, "/")
-	newFolder = server[:len(server)-4]
-	err = os.Mkdir(newFolder, 0755)
-	if err != nil {
-		return
-	}
-	//newFilePath = fmt.Sprintf("%s/%s", newFolder, path[len(path)-1])
-	//err = os.Symlink(server, newFilePath)
-	return
-}
-
-func createNewServerInstanceStructure(server, t string) (newInstancePath string, err error) { // This could do with some error handling instead of just panic
-	// path := strings.Split(server, "/")
-	// serverName := fmt.Sprintf("%s.jar", path[len(path)-1])
-	newInstancePath = fmt.Sprintf("%s/%s-%d", server, t, numRestartsOfType(server, t)+1)
-	err = os.Mkdir(newInstancePath, 0755)
-	if err != nil {
-		return
-	}
-	err = os.Mkdir(newInstancePath+"/logs", 0755)
-	if err != nil {
-		return
-	}
-	err = os.Mkdir(newInstancePath+"/logs/json", 0755)
-	if err != nil {
-		return
-	}
-	newFilePath := fmt.Sprintf("%s/%s.jar", newInstancePath, os.Getenv("identifier"))
-	err = os.Symlink(server+".jar", newFilePath)
-	return
-}
-
-func startNewServer(serverFolder string) *serve {
-	stdOut, err := os.OpenFile(serverFolder+"/stdOut", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
-	if err != nil {
-		log.Println(err)
-		return nil
-	}
-	stdErr, err := os.OpenFile(serverFolder+"/stdErr", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
-	if err != nil {
-		log.Println(err)
-		return nil
-	}
-	port := getPort()
-	ctx, cancel := context.WithCancel(context.Background())
-	cmd := exec.CommandContext(ctx, "java", "-Dserver.port="+port, "-jar", fmt.Sprintf("%s/%s.jar", serverFolder, os.Getenv("identifier")))
-	cmd.Dir = serverFolder
-	log.Println(cmd)
-	err = cmd.Start()
-	if err != nil {
-		log.Printf("ERROR: Updating server %v\n", err)
-		return nil
-	}
-	pid, err := os.OpenFile(serverFolder+"/pid", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
-	if err == nil {
-		fmt.Fprintln(pid, cmd.Process.Pid)
-		pid.Close()
-	}
-	time.Sleep(time.Second * 2) //Sleep an arbitrary amout of time so the service can start without getting any new request, this should not be needed
-	server := &serve{
-		port:   port,
-		server: cmd,
-		ctx:    ctx,
-		kill: func() {
-			cancel()
-			stdOut.Close()
-			stdErr.Close()
-		},
-	}
-	go parseLogServer(server, ctx)
-	return server
-}
-
-func numRestartsOfType(dir, t string) (num int) {
-	log.Println("COUNTING in di", dir)
-	files, err := ioutil.ReadDir(dir)
-	if err != nil {
-		return
-	}
-	for _, file := range files {
-		if !file.IsDir() {
-			continue
-		}
-		if !strings.HasPrefix(file.Name(), t) {
-			continue
-		}
-		num++
-	}
-	return
-}
-
-func symlinkFolder(server, t string) error {
-	newFile := fmt.Sprintf("%s-%s", os.Getenv("identifier"), t)
-	os.Remove(newFile)
-	return os.Symlink(server, newFile)
-}
-
-func getFirstServerDir(wd, t string) (name string, err error) {
-	fileName := fmt.Sprintf("%s/%s-%s", wd, os.Getenv("identifier"), t)
-	if fileExists(fileName) { // Might change this to do it manualy and actually check if it is a dir and so on.
-		path, err := os.Readlink(fileName)
-		if err == nil {
-			return path, nil
-		}
-		log.Println(err)
-	}
-	name, err = getNewestServerDir(wd, t)
-	if err != nil {
-		return
-	}
-	name = fmt.Sprintf("%s/%s", wd, name)
-	log.Println("Server dir name: ", name)
-
-	return //name, symlinkFolder(name, t)
-}
-
-func getNewestServerDir(wd, t string) (name string, err error) {
-	files, err := ioutil.ReadDir(wd)
-	if err != nil {
-		return
-	}
-	timeDir := time.Unix(0, 0)
-	timeFile := time.Unix(0, 0)
-	nameDir, nameFile := "", ""
-	for _, file := range files {
-		if !strings.HasPrefix(file.Name(), os.Getenv("identifier")) {
-			continue
-		}
-		if file.Name() == os.Getenv("identifier")+".jar" {
-			continue
-		}
-		if file.IsDir() {
-			if timeDir.After(file.ModTime()) {
-				continue
-			}
-			timeDir = file.ModTime()
-			nameDir = file.Name()
-			continue
-		}
-		if !strings.HasSuffix(file.Name(), ".jar") {
-			continue
-		}
-		if timeFile.After(file.ModTime()) {
-			continue
-		}
-		timeFile = file.ModTime()
-		nameFile = file.Name()
-	}
-	if (nameDir == "" || (t == "test" && timeFile.After(timeDir))) && nameFile != "" {
-		nameDir = nameFile[:len(nameFile)-4]
-		err = os.Mkdir(nameDir, 0755)
-		if err != nil {
-			return
-		}
-	}
-	return nameDir, nil
-}
-
-func fileExists(path string) bool {
-	_, err := os.Stat(path)
-	return !errors.Is(err, os.ErrNotExist)
-}
-
 func getPort() string {
 	port := availablePorts.Front()
 	availablePorts.Remove(port)
@@ -483,69 +275,6 @@ func parseLogServer(server *serve, ctx context.Context) {
 		}
 	}
 }
-
-// This might be a better implementation?
-/*func createNewServerStructure(server) (name string, err error) { // This could do with some error handling instead of just panic
-	path := strings.Split(server, "/")
-	name := path[len(path)-1][:len(path[len(path)-1])-4]
-	//newInstancePath = fmt.Sprintf("%s-%d", serverPath, numRestartsOfType(serverPath, t)+1)
-	err = os.Mkdir(name, 0755)
-	//if err != nil {
-	//	return
-	//}
-	//newFilePath := fmt.Sprintf("%s/%s.jar", newInstancePath, os.Getenv("identifier"))
-	//err = os.Symlink(server, newFilePath)
-	return
-}*/
-
-/* func tailFile(path string) (err error) {
-	watcher, err := inotify.NewWatcher()
-	if err != nil {
-		return
-	}
-	err = watcher.AddWatch(path, inotify.InCreate)
-	if err != nil {
-		return
-	}
-	go func() {
-		defer watcher.RemoveWatch(path)
-		for {
-			select {
-			case ev := <-watcher.Event:
-				log.Println("event:", ev)
-				if !strings.HasSuffix(ev.Name, ".jar") {
-					continue
-				}
-				time.Sleep(time.Second * 2) //Sleep an arbitrary amout of time so the file is done writing before we try to execute it
-				path, err := createNewServerStructure(ev.Name)
-				if err != nil {
-					log.Println(err)
-					continue
-				}
-				err = newServer(path, "test", &testingServer)
-				if err != nil {
-					log.Println(err)
-					continue
-				}
-			case err := <-watcher.Error:
-				log.Println("error:", err)
-			}
-		}
-	}()
-}*/
-
-/*func pullNewServer(script string) { // return the error instead
-	cmd := exec.Command(script)
-	err := cmd.Run()
-	if err != nil {
-		log.Printf("ERROR: Updating server\n %v\n", err)
-	}
-}
-
-
-func getEndpoints() { // In tottos oppinion this is dead
-
-}*/
 
 /*
 
