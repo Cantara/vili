@@ -78,8 +78,8 @@ func main() {
 				runningServer.breaking = 0
 				runningServer.requests = 0
 			}
-			go func() {
-				if testingServer != nil {
+			if testingServer != nil {
+				go func() {
 					rNew, err := requestHandler(endpoint+":"+testingServer.port, etv.request, true)
 					if err != nil {
 						log.Println(err)
@@ -97,8 +97,8 @@ func main() {
 					if testingServer.reliabilityScore(runningServer) >= -0.25 {
 						testingServer.once.Do(func() { deploy(&runningServer, &testingServer) })
 					}
-				}
-			}()
+				}()
+			}
 		}
 	}()
 
@@ -132,7 +132,7 @@ func main() {
 				}
 				oldFolder := ""
 				if testingServer != nil {
-					oldFolder = getBaseFromInstance(testingServer.server.Dir)
+					oldFolder = getBaseFromServer(testingServer.server.Dir)
 				}
 				err = newServer(path, "test", &testingServer)
 				if err != nil {
@@ -307,7 +307,8 @@ func parseLogServer(server *serve, ctx context.Context) {
 				server.errors++
 			}
 		case <-ctx.Done():
-			break
+			log.Println("Closing log parser")
+			return
 		}
 	}
 }

@@ -85,7 +85,7 @@ func startNewServer(serverFolder string) *serve {
 		return nil
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	cmd := exec.CommandContext(ctx, "java", "-jar", fmt.Sprintf("%s/%s.jar", serverFolder, os.Getenv("identifier"))) //Look into how to override port in config
+	cmd := exec.Command("java", "-jar", fmt.Sprintf("%s/%s.jar", serverFolder, os.Getenv("identifier"))) //Look into how to override port in config
 	cmd.Dir = serverFolder
 	log.Println(cmd)
 	err = cmd.Start()
@@ -103,6 +103,14 @@ func startNewServer(serverFolder string) *serve {
 		server: cmd,
 		ctx:    ctx,
 		kill: func() {
+			err := cmd.Process.Kill() //.Signal(syscall.SIGTERM)
+			if err != nil {
+				log.Println(err)
+			}
+			err = cmd.Wait()
+			if err != nil {
+				log.Println(err)
+			}
 			cancel()
 			stdOut.Close()
 			stdErr.Close()

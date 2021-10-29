@@ -23,6 +23,7 @@ func tailFile(path string, ctx context.Context) (lineChan chan []byte, err error
 		return
 	}
 	lineChan = make(chan []byte, 20)
+	defer close(lineChan)
 	go func() {
 		defer watcher.Close()
 		defer watcher.RemoveWatch(folder)
@@ -76,10 +77,10 @@ func tailFile(path string, ctx context.Context) (lineChan chan []byte, err error
 			case err := <-watcher.Error:
 				log.Println("event error:", err)
 			case <-ctx.Done():
-				break
+				log.Println("Closing log reader")
+				return
 			}
 		}
-		close(lineChan)
 	}()
 	return
 }
