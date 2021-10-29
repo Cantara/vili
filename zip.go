@@ -45,7 +45,7 @@ func addFiles(w *zip.Writer, basePath, baseInZip string) (err error) {
 	}
 
 	for _, file := range files {
-		fmt.Println(basePath + file.Name())
+		log.Println("ziping: " + basePath + file.Name())
 		if !file.IsDir() {
 			dat, err := ioutil.ReadFile(basePath + file.Name())
 			if err != nil {
