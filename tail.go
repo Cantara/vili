@@ -23,8 +23,8 @@ func tailFile(path string, ctx context.Context) (lineChan chan []byte, err error
 		return
 	}
 	lineChan = make(chan []byte, 20)
-	defer close(lineChan)
 	go func() {
+		defer close(lineChan)
 		defer watcher.Close()
 		defer watcher.RemoveWatch(folder)
 		r, file, err := newFileWatcherAndReader(path, watcher)

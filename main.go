@@ -290,7 +290,11 @@ func parseLogServer(server *serve, ctx context.Context) {
 	}
 	for {
 		select {
-		case line := <-lineChan:
+		case line, ok := <-lineChan:
+			if !ok {
+				log.Println("LineChan closed closing log parser")
+				return
+			}
 			if server.mesureFrom.IsZero() {
 				continue
 			}
