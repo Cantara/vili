@@ -122,6 +122,10 @@ func getNewestServerDir(wd, t string) (name string, err error) {
 		if err != nil {
 			return
 		}
+		err = os.Rename(nameFile, fmt.Sprintf("%s/%s", nameDir, nameFile))
+		if err != nil {
+			return
+		}
 	}
 	return nameDir, nil
 }
