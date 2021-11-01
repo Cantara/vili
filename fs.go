@@ -157,12 +157,16 @@ func numRestartsOfType(dir, t string) (num int) {
 }
 
 func copyPropertyFile(instance, port string) (err error) {
-	fileIn, err := os.Open(fmt.Sprintf("%s/%s", getBaseFromInstance(instance), os.Getenv("properties_file_name")))
+	propertiesFileName := os.Getenv("properties_file_name")
+	if propertiesFileName == "" {
+		return
+	}
+	fileIn, err := os.Open(fmt.Sprintf("%s/%s", getBaseFromInstance(instance), propertiesFileName))
 	if err != nil {
 		return
 	}
 	defer fileIn.Close()
-	fileOut, err := os.Create(fmt.Sprintf("%s/%s", instance, os.Getenv("properties_file_name")))
+	fileOut, err := os.Create(fmt.Sprintf("%s/%s", instance, propertiesFileName))
 	if err != nil {
 		return
 	}

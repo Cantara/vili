@@ -43,7 +43,7 @@ func newServer(path, t string, server **serve) (err error) {
 		return
 	}
 
-	s := startNewServer(newPath)
+	s := startNewServer(newPath, port)
 	if s == nil {
 		availablePorts.PushFront(port)
 		return
@@ -85,7 +85,10 @@ func startNewServer(serverFolder string) *serve {
 		return nil
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	cmd := exec.Command("java", "-jar", fmt.Sprintf("%s/%s.jar", serverFolder, os.Getenv("identifier"))) //Look into how to override port in config
+	cmd := exec.Command("java", "-jar", fmt.Sprintf("%s/%s.jar", serverFolder, os.Getenv("identifier")))
+	if os.Getenv("properties_file_name") == "" {
+		cmd = exec.Command("java", fmt.Sprintf("-D%s=%s", os.Getenv("port_identifier"), port), "-jar", fmt.Sprintf("%s/%s.jar", serverFolder, os.Getenv("identifier")))
+	}
 	cmd.Dir = serverFolder
 	log.Println(cmd)
 	err = cmd.Start()
