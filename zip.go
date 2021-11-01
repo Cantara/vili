@@ -8,12 +8,15 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
-	"strings"
 )
 
-func zipDir(server string) (err error) {
+type zipper struct {
+	outDir string
+}
+
+func (z zipper) zipDir(server string) (err error) {
 	log.Println("Achiving server ", server)
-	outFile, err := os.Create(fmt.Sprintf("%s/archive/%s.zip", getBaseFromServer(server), getFileFromPath(server)))
+	outFile, err := os.Create(fmt.Sprintf("%s/%s.zip", z.zipDir, getFileFromPath(server)))
 	if err != nil {
 		return
 	}
@@ -73,9 +76,4 @@ func addFiles(w *zip.Writer, basePath, baseInZip string) (err error) {
 		}
 	}
 	return
-}
-
-func getBaseFromServer(server string) string {
-	path := strings.Split(server, "/")
-	return strings.Join(path[:len(path)-1], "/") //TODO handle if server is not long enugh aka correct
 }

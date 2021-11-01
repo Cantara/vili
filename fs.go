@@ -178,3 +178,8 @@ func copyPropertyFile(instance, port string) (err error) {
 	}
 	return
 }
+
+func getBaseFromServer(server string) string {
+	path := strings.Split(server, "/")
+	return strings.Join(path[:len(path)-1], "/") //TODO handle if server is not long enugh aka correct
+}

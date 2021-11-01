@@ -29,6 +29,7 @@ var testingServerLock sync.Mutex
 var testingServer *serve
 var availablePorts *list.List
 var endpoint string
+var z zipper
 
 func loadEnv() {
 	err := godotenv.Load(".env")
@@ -44,8 +45,20 @@ func main() {
 		log.Fatal(err)
 	}
 	defer f.Close()
-
 	log.SetOutput(f)
+
+	wd, err := os.Getwd()
+	if err != nil {
+		log.Fatal(err)
+	}
+	z.outDir = fmt.Sprintf("%s/%s", wd, "archive")
+	if !fileExists(z.outDir) {
+		err = os.Mkdir(z.outDir, 0755)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+
 	endpoint = os.Getenv("endpoint")
 	r := os.Getenv("port_range")
 	ports := strings.Split(r, "-")
@@ -107,10 +120,6 @@ func main() {
 		log.Fatal(err)
 	}
 	defer watcher.Close()
-	wd, err := os.Getwd()
-	if err != nil {
-		log.Fatal(err)
-	}
 	err = watcher.AddWatch(wd, inotify.InCreate)
 	if err != nil {
 		log.Fatal(err)
@@ -139,7 +148,7 @@ func main() {
 					log.Println(err)
 					continue
 				}
-				err = zipDir(oldFolder)
+				err = z.zipDir(oldFolder)
 				if err != nil {
 					log.Println(err)
 				}
@@ -265,7 +274,7 @@ func deploy(running, testing **serve) (err error) {
 	oldFolder := getBaseFromServer((*running).server.Dir)
 	err = newServer(server, "running", running) //strings.Join(path[:len(path)-1], "/"), "running", testing)
 
-	err = zipDir(oldFolder)
+	err = z.zipDir(oldFolder)
 	if err != nil {
 		log.Println(err)
 	}
