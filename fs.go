@@ -70,14 +70,18 @@ func symlinkFolder(server, t string) error {
 func getFirstServerDir(wd, t string) (name string, err error) {
 	fileName := fmt.Sprintf("%s/%s-%s", wd, os.Getenv("identifier"), t)
 	if fileExists(fileName) { // Might change this to do it manualy and actually check if it is a dir and so on.
-		path, err := os.Readlink(fileName)
+		name, err = os.Readlink(fileName)
 		if err == nil {
-			return path, nil
+			return
 		}
 		log.Println(err)
 	}
 	name, err = getNewestServerDir(wd, t)
 	if err != nil {
+		return
+	}
+	if name == "" {
+		err = fmt.Errorf("No server of type %s found.", t)
 		return
 	}
 	name = fmt.Sprintf("%s/%s", wd, name)
