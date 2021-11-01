@@ -40,12 +40,15 @@ func loadEnv() {
 
 func main() {
 	loadEnv()
-	f, err := os.OpenFile(os.Getenv("log_file"), os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
-	if err != nil {
-		log.Fatal(err)
+	logFile := os.Getenv("log_file")
+	if logFile != "" {
+		f, err := os.OpenFile(logFile, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer f.Close()
+		log.SetOutput(f)
 	}
-	defer f.Close()
-	log.SetOutput(f)
 
 	wd, err := os.Getwd()
 	if err != nil {
