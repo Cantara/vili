@@ -38,6 +38,24 @@ func loadEnv() {
 	}
 }
 
+func verifyConfig() error {
+	if os.Getenv("scheme") != "http" && os.Getenv("scheme") != "https" {
+		return fmt.Errorf("scheme needs to be either http or https") // This requirement could probably be removed, i think vili should be able to handle other schemes like file and so on
+	}
+	if os.Getenv("endpoint") == "" {
+		return fmt.Errorf("No endpoint provided")
+	}
+	if !strings.Contains(os.Getenv("port_range"), "-") || strings.Contains(os.Getenv("port_range"), " ") {
+		return fmt.Errorf("Portrage is not a range in the format of <number>-<number>")
+	}
+	if os.Getenv("identifier") == "" {
+		return fmt.Errorf("No identifier provided")
+	}
+	if os.Getenv("port_identifier") == "" {
+		return fmt.Errorf("No port identifier provided")
+	}
+}
+
 func main() {
 	loadEnv()
 	logFile := os.Getenv("log_file")
@@ -48,6 +66,10 @@ func main() {
 		}
 		defer f.Close()
 		log.SetOutput(f)
+	}
+	err := verifyConfig()
+	if err != nil {
+		log.Fatal(err)
 	}
 
 	wd, err := os.Getwd()
