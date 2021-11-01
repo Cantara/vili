@@ -17,6 +17,10 @@ Vili tests new versions of your servers with real data before showing them to yo
 * Running will refer to the current server, the version we trust.
 * Testing will refer to the server that is tested against the Running server and potentially deployed.
 
+## What your servers need to implement //TODO
+
+Your servers need to implement a way to not write persistent data when it is used in testing. This is distinguished by adding a header on the test request. The servers should be oblivious to the fact that it is not live, other than at the point of writing persistent data.
+
 ## How to run Vili
 
 1. Prepare a base folder where Vili will run and all configs and new jar files will land. 
