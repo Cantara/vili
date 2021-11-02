@@ -67,6 +67,9 @@ func main() {
 			log.Fatal("Unable to sett logdir")
 		}
 		defer cloaser()
+		done := make(chan func())
+		log.StartRotate(done)
+		defer close(done)
 	}
 	err := verifyConfig()
 	if err != nil {

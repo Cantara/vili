@@ -30,7 +30,7 @@ Your servers need to implement a way to not write persistent data when it is use
    * endpoint is their base url / hostname / domain
    * port_range is the range of ports used to start and test your servers. You should have more than 5 port available
    * identifier is the base name of your server file. Without version information and without .jar. The prefix if you will.
-   * log_file is the file vili logs to. //TODO leave blank for stdout
+   * log_dir is the dir vili logs to. If blank it logs to std
    * properties_file_name is **the** config file used for your applications. This will be copied to every instanve
    * port_identifier is the key in your properties file that corresponds to the port your server will run on
 3. Setup a service like [Visuale's](https://github.com/Cantara/visuale) [semantic_update_service](https://github.com/Cantara/visuale/blob/master/scripts/semantic_update_service.sh) to downloade new verions into a base folder.
