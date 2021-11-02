@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"os"
 	"strconv"
@@ -14,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	log "github.com/cantara/bragi"
 	"github.com/joho/godotenv"
 	"k8s.io/utils/inotify"
 )
@@ -54,18 +54,19 @@ func verifyConfig() error {
 	if os.Getenv("port_identifier") == "" {
 		return fmt.Errorf("No port identifier provided")
 	}
+	return nil
 }
 
 func main() {
 	loadEnv()
-	logFile := os.Getenv("log_file")
-	if logFile != "" {
-		f, err := os.OpenFile(logFile, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
-		if err != nil {
-			log.Fatal(err)
+	logDir := os.Getenv("log_dir")
+	if logDir != "" {
+		cloaser := log.SetOutputFolder(logDir)
+		if cloaser != nil {
+			log.Fatal("Unable to sett logdir")
 		}
-		defer f.Close()
-		log.SetOutput(f)
+		defer cloaser()
+		log.SetPrefix("vili")
 	}
 	err := verifyConfig()
 	if err != nil {

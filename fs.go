@@ -5,10 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"os"
 	"strings"
 	"time"
+
+	log "github.com/cantara/bragi"
 )
 
 func stripJar(s string) string {

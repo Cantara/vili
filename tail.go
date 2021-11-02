@@ -3,9 +3,10 @@ package main
 import (
 	"bufio"
 	"context"
-	"log"
 	"os"
 	"strings"
+
+	log "github.com/cantara/bragi"
 
 	"k8s.io/utils/inotify"
 )

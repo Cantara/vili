@@ -6,8 +6,9 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"os"
+
+	log "github.com/cantara/bragi"
 )
 
 type zipper struct {

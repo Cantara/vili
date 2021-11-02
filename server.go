@@ -3,12 +3,13 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"math"
 	"os"
 	"os/exec"
 	"sync"
 	"time"
+
+	log "github.com/cantara/bragi"
 )
 
 type serve struct { // TODO rename
@@ -73,7 +74,7 @@ func newServer(path, t string, server **serve) (err error) {
 	return
 }
 
-func startNewServer(serverFolder string) *serve {
+func startNewServer(serverFolder, port string) *serve {
 	stdOut, err := os.OpenFile(serverFolder+"/stdOut", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
 	if err != nil {
 		log.Println(err)
