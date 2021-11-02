@@ -61,12 +61,12 @@ func main() {
 	loadEnv()
 	logDir := os.Getenv("log_dir")
 	if logDir != "" {
+		log.SetPrefix("vili")
 		cloaser := log.SetOutputFolder(logDir)
 		if cloaser != nil {
 			log.Fatal("Unable to sett logdir")
 		}
 		defer cloaser()
-		log.SetPrefix("vili")
 	}
 	err := verifyConfig()
 	if err != nil {
