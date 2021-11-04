@@ -91,7 +91,7 @@ func startNewServer(serverFolder, port string) *serve {
 		cmd = exec.Command("java", fmt.Sprintf("-D%s=%s", os.Getenv("port_identifier"), port), "-jar", fmt.Sprintf("%s/%s.jar", serverFolder, os.Getenv("identifier")))
 	}
 	cmd.Dir = serverFolder
-	log.Println(cmd)
+	log.Debug(cmd)
 	err = cmd.Start()
 	if err != nil {
 		log.Printf("ERROR: Updating server %v\n", err)
