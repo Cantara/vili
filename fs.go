@@ -40,11 +40,14 @@ func createNewServerStructure(server string) (newFolder string, err error) { // 
 }
 
 func createNewServerInstanceStructure(server, t, port string) (newInstancePath string, err error) { // This could do with some error handling instead of just panic
-	newInstancePath = fmt.Sprintf("%s/%s-%d", server, t, numRestartsOfType(server, t)+1)
+	newInstancePath = fmt.Sprintf("%s/%s_%s", server, time.Now().Format("2006-01-02_15.04.05"), t) //, numRestartsOfType(server, t)+1)
 	err = os.Mkdir(newInstancePath, 0755)
 	if err != nil {
 		return
 	}
+	newFile := fmt.Sprintf("%s/current", server)
+	os.Remove(newFile)
+	os.Symlink(newInstancePath, newFile)
 	err = os.Mkdir(newInstancePath+"/logs", 0755)
 	if err != nil {
 		return
@@ -52,6 +55,15 @@ func createNewServerInstanceStructure(server, t, port string) (newInstancePath s
 	err = os.Mkdir(newInstancePath+"/logs/json", 0755)
 	if err != nil {
 		return
+	}
+	newFile = fmt.Sprintf("%s/logs", server)
+	os.Remove(newFile)
+	os.Symlink(newInstancePath+"/logs", newFile)
+	if t == "running" {
+		base := getBaseFromServer(server)
+		newFile = fmt.Sprintf("%s/logs_%s", base, os.Getenv("identifier"))
+		os.Remove(newFile)
+		os.Symlink(newInstancePath+"/logs", newFile)
 	}
 	newFilePath := fmt.Sprintf("%s/%s.jar", newInstancePath, os.Getenv("identifier"))
 	err = os.Symlink(fmt.Sprintf("%s/%s.jar", server, getFileFromPath(server)), newFilePath)
@@ -138,23 +150,6 @@ func getNewestServerDir(wd, t string) (name string, err error) {
 func fileExists(path string) bool {
 	_, err := os.Stat(path)
 	return !errors.Is(err, os.ErrNotExist)
-}
-
-func numRestartsOfType(dir, t string) (num int) {
-	files, err := ioutil.ReadDir(dir)
-	if err != nil {
-		return
-	}
-	for _, file := range files {
-		if !file.IsDir() {
-			continue
-		}
-		if !strings.HasPrefix(file.Name(), t) {
-			continue
-		}
-		num++
-	}
-	return
 }
 
 func copyPropertyFile(instance, port string) (err error) {
