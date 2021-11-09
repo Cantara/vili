@@ -119,6 +119,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	defer serv.Kill()
 
 	go func() {
 		for {
@@ -131,14 +132,12 @@ func main() {
 						log.Println(err)
 						return
 					}
-					if !serv.Messuring() {
-						return
-					}
 					err = verifyNewResponse(etv.oldResponse, rNew)
 					if err != nil {
 						serv.AddBreaking(typelib.TESTING)
 					}
 					serv.AddRequest(typelib.TESTING)
+					serv.CheckReliability()
 				}()
 			}
 		}
@@ -186,12 +185,14 @@ func main() {
 			RunningV: "unknown",
 			TestingV: "unknown",
 		}
-		viliDashBaseURI := "https://api-devtest.entraos.io/vili-dash"
-		err = post(viliDashBaseURI+"/register/server", &servData, &servData)
-		if err != nil {
-			log.Fatal(err)
-		}
 		go func() {
+			viliDashBaseURI := "https://api-devtest.entraos.io/vili-dash"
+			err = post(viliDashBaseURI+"/register/server", &servData, &servData)
+			for err != nil {
+				log.Info(err)
+				time.Sleep(time.Second * 30)
+				err = post(viliDashBaseURI+"/register/server", &servData, &servData)
+			}
 			for {
 				time.Sleep(time.Minute)
 				var vda viliDashAction
@@ -215,7 +216,7 @@ func main() {
 
 	s := &http.Server{
 		Addr:           ":" + os.Getenv("port"),
-		Handler:        http.HandlerFunc(reqHandler(serv, verifyChan)),
+		Handler:        http.HandlerFunc(reqHandler(&serv, verifyChan)),
 		ReadTimeout:    10 * time.Second,
 		WriteTimeout:   10 * time.Second,
 		MaxHeaderBytes: 1 << 20,
@@ -254,7 +255,7 @@ func post(uri string, data interface{}, out interface{}) (err error) {
 	return
 }
 
-func reqHandler(serv server.Server, etv chan<- endpointToVerify) http.HandlerFunc {
+func reqHandler(serv *server.Server, etv chan<- endpointToVerify) http.HandlerFunc { //TODO Remove dependencie on pointer
 	return func(w http.ResponseWriter, r *http.Request) {
 		rOld, err := requestHandler(endpoint+":"+serv.GetPort(typelib.RUNNING), r, false)
 		if err != nil {

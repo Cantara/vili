@@ -3,3 +3,9 @@ vili
 *.pem
 .env
 *.log
+
+# Testing suff
+archive
+information*
+logs_*
+*.properties

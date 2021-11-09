@@ -26,11 +26,20 @@ type servletHandler struct {
 	mutex      sync.Mutex
 	once       sync.Once
 	serverType typelib.ServerType
+	dir        string
 }
 
 func NewServer(workingDir string, of chan<- string, portrangeFrom, portrangeTo int) (s Server, err error) {
-	s.oldFolders = of
-	s.dir = workingDir
+	s = Server{
+		running: servletHandler{
+			serverType: typelib.RUNNING,
+		},
+		testing: servletHandler{
+			serverType: typelib.TESTING,
+		},
+		oldFolders: of,
+		dir:        workingDir,
+	}
 	s.setAvailablePorts(portrangeFrom, portrangeTo)
 	firstServerPath, err := fs.GetFirstServerDir(s.dir, typelib.RUNNING)
 	if err != nil {
@@ -60,7 +69,7 @@ func (s Server) reliabilityScore() float64 {
 	return s.testing.servlet.ReliabilityScore() - s.running.servlet.ReliabilityScore()
 }
 
-func (s Server) newServer(path string, t typelib.ServerType) (err error) {
+func (s *Server) newServer(path string, t typelib.ServerType) (err error) {
 	port := s.getAvailablePort()
 	newPath, err := fs.CreateNewServerInstanceStructure(path, t, port)
 	if err != nil {
@@ -81,10 +90,12 @@ func (s Server) newServer(path string, t typelib.ServerType) (err error) {
 	case typelib.RUNNING:
 		s.running.mutex.Lock()
 		oldServer, s.running.servlet = s.running.servlet, &serv
+		s.running.dir = path
 		s.running.mutex.Unlock()
 	case typelib.TESTING:
 		s.testing.mutex.Lock()
 		oldServer, s.testing.servlet = s.testing.servlet, &serv
+		s.testing.dir = path
 		s.testing.mutex.Unlock()
 	}
 
@@ -106,7 +117,7 @@ func (s Server) GetPort(t typelib.ServerType) string {
 	return ""
 }
 
-func (s Server) AddBreaking(t typelib.ServerType) {
+func (s *Server) AddBreaking(t typelib.ServerType) {
 	switch t {
 	case typelib.RUNNING:
 		s.running.servlet.IncrementBreaking()
@@ -115,7 +126,7 @@ func (s Server) AddBreaking(t typelib.ServerType) {
 	}
 }
 
-func (s Server) AddRequest(t typelib.ServerType) {
+func (s *Server) AddRequest(t typelib.ServerType) {
 	switch t {
 	case typelib.RUNNING:
 		s.running.servlet.IncrementRequests()
@@ -124,13 +135,13 @@ func (s Server) AddRequest(t typelib.ServerType) {
 	}
 }
 
-func (s Server) HasTesting() bool {
+func (s *Server) HasTesting() bool {
 	s.testing.mutex.Lock()
 	defer s.testing.mutex.Unlock()
 	return s.testing.servlet != nil
 }
 
-func (s Server) Messuring() bool {
+func (s *Server) Messuring() bool {
 	if s.testing.servlet == nil {
 		return false
 	}
@@ -139,7 +150,7 @@ func (s Server) Messuring() bool {
 	return !s.testing.mesureFrom.IsZero()
 }
 
-func (s Server) ResetTest() { //TODO: Make better
+func (s *Server) ResetTest() { //TODO: Make better
 	if !s.HasTesting() {
 		return
 	}
@@ -171,16 +182,16 @@ func (s *Server) setAvailablePorts(from, to int) {
 	}
 }
 
-func (s Server) Deploy() {
+func (s *Server) Deploy() {
 	log.Println("DEPLOYING NEW RUNNING SERVER")
 	s.testing.mutex.Lock()
-	server := fs.GetBaseFromServer(s.testing.servlet.Dir)
+	server := s.testing.dir
 	s.testing.servlet.Kill()
 	s.availablePorts.PushFront(s.testing.servlet.Port)
 	s.testing.servlet = nil
 	s.testing.mutex.Unlock()
 
-	oldFolder := fs.GetBaseFromServer(s.running.servlet.Dir)
+	oldFolder := s.running.dir
 	err := s.newServer(server, typelib.RUNNING)
 	if err != nil {
 		log.AddError(err).Debug("New server deployment")
@@ -189,24 +200,24 @@ func (s Server) Deploy() {
 	return
 }
 
-func (s Server) Restart(t typelib.ServerType) (err error) {
+func (s *Server) Restart(t typelib.ServerType) (err error) {
 	switch t {
 	case typelib.RUNNING:
-		err = s.newServer(fs.GetBaseFromServer(s.running.servlet.Dir), t)
+		err = s.newServer(s.running.dir, t)
 	case typelib.TESTING:
-		err = s.newServer(fs.GetBaseFromServer(s.testing.servlet.Dir), t)
+		err = s.newServer(s.testing.dir, t)
 	}
 	return
 }
 
-func (s Server) NewTesting(serv string) (err error) {
+func (s *Server) NewTesting(serv string) (err error) {
 	path, err := fs.CreateNewServerStructure(serv)
 	if err != nil {
 		return
 	}
 	oldFolder := ""
 	if s.testing.servlet != nil {
-		oldFolder = fs.GetBaseFromServer(s.testing.servlet.Dir)
+		oldFolder = s.testing.dir
 	}
 	err = s.newServer(path, typelib.TESTING)
 	if oldFolder != "" {
@@ -215,9 +226,22 @@ func (s Server) NewTesting(serv string) (err error) {
 	return
 }
 
-func (s Server) ChekcReliability() {
+func (s *Server) CheckReliability() {
 	log.Println("reliabilityScore of testingServer compared to runningServer: ", s.reliabilityScore())
 	if s.reliabilityScore() >= -0.25 {
 		s.testing.once.Do(s.Deploy)
 	}
+}
+
+func (s *Server) Kill() {
+	s.testing.mutex.Lock()
+	if s.testing.servlet != nil {
+		s.testing.servlet.Kill()
+	}
+	s.testing.mutex.Unlock()
+	s.running.mutex.Lock()
+	if s.running.servlet != nil {
+		s.running.servlet.Kill()
+	}
+	s.running.mutex.Unlock()
 }
