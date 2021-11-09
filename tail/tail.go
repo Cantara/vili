@@ -1,4 +1,4 @@
-package main
+package tail
 
 import (
 	"bufio"
@@ -11,7 +11,7 @@ import (
 	"k8s.io/utils/inotify"
 )
 
-func tailFile(path string, ctx context.Context) (lineChan chan []byte, err error) {
+func File(path string, ctx context.Context) (lineChan chan []byte, err error) {
 	parts := strings.Split(path, "/")
 	folder := strings.Join(parts[:len(parts)-1], "/")
 	watcher, err := inotify.NewWatcher()

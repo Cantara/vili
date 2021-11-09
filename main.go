@@ -1,8 +1,7 @@
 package main
 
 import (
-	"container/list"
-	"context"
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -10,10 +9,13 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	log "github.com/cantara/bragi"
+	"github.com/cantara/vili/fs"
+	"github.com/cantara/vili/server"
+	"github.com/cantara/vili/typelib"
+	"github.com/cantara/vili/zip"
 	"github.com/joho/godotenv"
 	"k8s.io/utils/inotify"
 )
@@ -23,13 +25,13 @@ type endpointToVerify struct {
 	request     *http.Request
 }
 
-var runningServerLock sync.Mutex
-var runningServer *serve
-var testingServerLock sync.Mutex
-var testingServer *serve
-var availablePorts *list.List
+type viliDashAction struct {
+	Server string `json:"server"`
+	Action string `json:"action"`
+}
+
 var endpoint string
-var z zipper
+var z zip.Zipper
 
 func loadEnv() {
 	err := godotenv.Load(".env")
@@ -80,9 +82,11 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	z.outDir = fmt.Sprintf("%s/%s", wd, "archive")
-	if !fileExists(z.outDir) {
-		err = os.Mkdir(z.outDir, 0755)
+	z = zip.Zipper{
+		OutDir: fmt.Sprintf("%s/%s", wd, "archive"),
+	}
+	if !fs.FileExists(z.OutDir) {
+		err = os.Mkdir(z.OutDir, 0755)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -99,50 +103,46 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	availablePorts = list.New()
-	for i := from; i <= to; i++ {
-		availablePorts.PushFront(strconv.Itoa(i))
-	}
-
+	server.SetAvailablePorts(from, to)
 	verifyChan := make(chan endpointToVerify, 10) // Arbitrary large number that hopefully will not block
 	go func() {
 		for {
 			etv := <-verifyChan
-			if testingServer != nil && testingServer.mesureFrom.IsZero() {
-				testingServer.mesureFrom = time.Now()
-				testingServer.warnings = 0
-				testingServer.errors = 0
-				testingServer.breaking = 0
-				testingServer.requests = 0
-				runningServer.mesureFrom = time.Now()
-				runningServer.warnings = 0
-				runningServer.errors = 0
-				runningServer.breaking = 0
-				runningServer.requests = 0
-			}
-			if testingServer != nil {
+			server.ResetTest()
+			if server.HasTesting() {
 				go func() {
-					rNew, err := requestHandler(endpoint+":"+testingServer.port, etv.request, true)
+					rNew, err := requestHandler(endpoint+":"+server.GetPort(typelib.TESTING), etv.request, true)
 					if err != nil {
 						log.Println(err)
 						return
 					}
-					err = verifyNewResponse(etv.oldResponse, rNew)
-					if err != nil {
-						testingServer.breaking++
-					}
-					if testingServer.mesureFrom.IsZero() {
+					if !server.Messuring() {
 						return
 					}
-					testingServer.requests++
-					log.Println("reliabilityScore of testingServer compared to runningServer: ", testingServer.reliabilityScore(runningServer))
-					if testingServer.reliabilityScore(runningServer) >= -0.25 {
-						testingServer.once.Do(func() { deploy(&runningServer, &testingServer) })
+					err = verifyNewResponse(etv.oldResponse, rNew)
+					if err != nil {
+						server.AddBreaking(typelib.TESTING)
 					}
+					server.AddRequest(typelib.TESTING)
 				}()
 			}
 		}
 	}()
+	zipperChan := make(chan string, 1)
+	go func() {
+		for {
+			oldFolder := <-zipperChan
+			err = z.ZipDir(oldFolder)
+			if err != nil {
+				log.Println(err)
+			}
+		}
+	}()
+
+	err = server.InitServers(wd, zipperChan)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	watcher, err := inotify.NewWatcher()
 	if err != nil {
@@ -166,50 +166,51 @@ func main() {
 					continue
 				}
 				time.Sleep(time.Second * 2) //Sleep an arbitrary amout of time so the file is done writing before we try to execute it
-				path, err := createNewServerStructure(ev.Name)
-				if err != nil {
-					log.Println(err)
-					continue
-				}
-				oldFolder := ""
-				if testingServer != nil {
-					oldFolder = getBaseFromServer(testingServer.server.Dir)
-				}
-				err = newServer(path, "test", &testingServer)
-				if err != nil {
-					log.Println(err)
-					continue
-				}
-				err = z.zipDir(oldFolder)
-				if err != nil {
-					log.Println(err)
-				}
+				server.NewTesting(ev.Name)
 			case err := <-watcher.Error:
 				log.Println("error:", err)
 			}
 		}
 	}()
 
-	firstServerPath, err := getFirstServerDir(wd, "running")
-	if err != nil {
-		log.Fatal(err)
-	}
-	log.Println(firstServerPath)
-	err = newServer(firstServerPath, "running", &runningServer)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	firstTestServerPath, err := getFirstServerDir(wd, "test")
-	if err != nil {
-		log.Fatal(err)
-	}
-	log.Println(firstTestServerPath)
-	if firstServerPath != firstTestServerPath {
-		err = newServer(firstTestServerPath, "test", &testingServer)
+	if os.Getenv("manualcontrol") == "true" {
+		serv := struct {
+			Identity string `json:"identity"`
+			Uid      string `json:"uid"`
+			Ip       string `json:"ip"`
+			RunningV string `json:"running_version"`
+			TestingV string `json:"testing_version"`
+		}{
+			Identity: os.Getenv("identity"),
+			Ip:       "0.0.0.0",
+			RunningV: "unknown",
+			TestingV: "unknown",
+		}
+		viliDashBaseURI := "https://api-devtest.entraos.io/vili-dash"
+		err = post(viliDashBaseURI+"/register/server", &serv, &serv)
 		if err != nil {
 			log.Fatal(err)
 		}
+		go func() {
+			for {
+				time.Sleep(time.Minute)
+				var vda viliDashAction
+				err = get(viliDashBaseURI+"/action/"+os.Getenv("identifier")+"/"+serv.Uid, &vda)
+				if err != nil {
+					log.Println(err)
+					continue
+				}
+				switch vda.Action {
+				case "deploy":
+					server.Deploy()
+				case "restart":
+					err = server.Restart(typelib.FromString(vda.Server))
+					if err != nil {
+						log.Println(err)
+					}
+				}
+			}
+		}()
 	}
 
 	s := &http.Server{
@@ -223,9 +224,39 @@ func main() {
 	log.Fatal(s.ListenAndServe())
 }
 
+func get(uri string, out interface{}) (err error) {
+	resp, err := http.Get(uri)
+	if err != nil {
+		return
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return
+	}
+	err = json.Unmarshal(body, out)
+	return
+}
+
+func post(uri string, data interface{}, out interface{}) (err error) {
+	jsonValue, _ := json.Marshal(data)
+	buf := bytes.NewReader(jsonValue)
+	resp, err := http.Post(uri, "application/json", buf)
+	if err != nil {
+		return
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return
+	}
+	err = json.Unmarshal(body, out)
+	return
+}
+
 func reqHandler(etv chan<- endpointToVerify) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		rOld, err := requestHandler(endpoint+":"+runningServer.port, r, false)
+		rOld, err := requestHandler(endpoint+":"+server.GetPort(typelib.RUNNING), r, false)
 		if err != nil {
 			log.Println(err)
 			return
@@ -242,10 +273,7 @@ func reqHandler(etv chan<- endpointToVerify) http.HandlerFunc {
 			}
 		}
 		io.Copy(w, rOld.Body)
-		if !runningServer.mesureFrom.IsZero() {
-			runningServer.requests++
-		}
-		//fmt.Fprintln(w, rOld)
+		server.AddRequest(typelib.RUNNING)
 
 		etv <- endpointToVerify{
 			oldResponse: rOld,
@@ -293,69 +321,6 @@ func verifyNewResponse(r, t *http.Response) error { // Take inn resonses
 		return fmt.Errorf("Missing endpoint")
 	}
 	return nil
-}
-
-func deploy(running, testing **serve) (err error) {
-	log.Println("DEPLOYING NEW RUNNING SERVER")
-	testingServerLock.Lock()
-	server := getBaseFromServer((*testing).server.Dir)
-	(*testing).kill()
-	availablePorts.PushFront((*testing).port)
-	*testing = nil
-	testingServerLock.Unlock()
-	oldFolder := getBaseFromServer((*running).server.Dir)
-	err = newServer(server, "running", running) //strings.Join(path[:len(path)-1], "/"), "running", testing)
-
-	err = z.zipDir(oldFolder)
-	if err != nil {
-		log.Println(err)
-	}
-	return
-}
-
-func getPort() string {
-	port := availablePorts.Front()
-	availablePorts.Remove(port)
-	return port.Value.(string)
-}
-
-type logData struct {
-	Level string `json:"level"`
-}
-
-func parseLogServer(server *serve, ctx context.Context) {
-	lineChan, err := tailFile(fmt.Sprintf("%s/logs/json/%s.log", server.server.Dir, os.Getenv("identifier")), ctx)
-	if err != nil {
-		log.Println(err) //TODO look into what can be done here
-		return
-	}
-	for {
-		select {
-		case line, ok := <-lineChan:
-			if !ok {
-				log.Println("LineChan closed closing log parser")
-				return
-			}
-			if server.mesureFrom.IsZero() {
-				continue
-			}
-			var data logData
-			err := json.Unmarshal(line, &data)
-			if err != nil {
-				log.Println(err)
-				continue
-			}
-			switch data.Level {
-			case "WARN":
-				server.warnings++
-			case "ERROR":
-				server.errors++
-			}
-		case <-ctx.Done():
-			log.Println("Closing log parser")
-			return
-		}
-	}
 }
 
 /*

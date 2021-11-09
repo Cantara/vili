@@ -1,4 +1,4 @@
-package main
+package zip
 
 import (
 	"archive/zip"
@@ -9,15 +9,16 @@ import (
 	"os"
 
 	log "github.com/cantara/bragi"
+	"github.com/cantara/vili/fs"
 )
 
-type zipper struct {
-	outDir string
+type Zipper struct {
+	OutDir string
 }
 
-func (z zipper) zipDir(server string) (err error) {
+func (z Zipper) ZipDir(server string) (err error) {
 	log.Println("Achiving server ", server)
-	outFile, err := os.Create(fmt.Sprintf("%s/%s.zip", z.zipDir, getFileFromPath(server)))
+	outFile, err := os.Create(fmt.Sprintf("%s/%s.zip", z.OutDir, fs.GetFileFromPath(server)))
 	if err != nil {
 		return
 	}

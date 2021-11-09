@@ -1,4 +1,4 @@
-package main
+package fs
 
 import (
 	"bufio"
@@ -10,6 +10,7 @@ import (
 	"time"
 
 	log "github.com/cantara/bragi"
+	"github.com/cantara/vili/typelib"
 )
 
 func stripJar(s string) string {
@@ -19,7 +20,7 @@ func stripJar(s string) string {
 	return s[:len(s)-4]
 }
 
-func getFileFromPath(path string) string {
+func GetFileFromPath(path string) string {
 	pathParts := strings.Split(path, "/")
 	return pathParts[len(pathParts)-1]
 }
@@ -29,17 +30,25 @@ func getBaseFromInstance(instance string) string {
 	return strings.Join(path[:len(path)-2], "/") //TODO handle if server is not long enugh aka correct
 }
 
-func createNewServerStructure(server string) (newFolder string, err error) { // This could do with some error handling instead of just panic
+func GetBaseFromServer(server string) string {
+	path := strings.Split(server, "/")
+	return strings.Join(path[:len(path)-1], "/") //TODO handle if server is not long enugh aka correct
+}
+
+func CreateNewServerStructure(server string) (newFolder string, err error) { // This could do with some error handling instead of just panic
 	newFolder = stripJar(server)
 	err = os.Mkdir(newFolder, 0755)
 	if err != nil {
 		return
 	}
-	err = os.Rename(server, fmt.Sprintf("%s/%s", newFolder, getFileFromPath(server)))
+	err = os.Rename(server, fmt.Sprintf("%s/%s", newFolder, GetFileFromPath(server)))
 	return
 }
 
-func createNewServerInstanceStructure(server, t, port string) (newInstancePath string, err error) { // This could do with some error handling instead of just panic
+func CreateNewServerInstanceStructure(server string, t typelib.ServerType, port string) (newInstancePath string, err error) { // This could do with some error handling instead of just panic
+	if strings.HasSuffix(server, "/") {
+		server = server[:len(server)-1]
+	}
 	newInstancePath = fmt.Sprintf("%s/%s_%s", server, time.Now().Format("2006-01-02_15.04.05"), t) //, numRestartsOfType(server, t)+1)
 	err = os.Mkdir(newInstancePath, 0755)
 	if err != nil {
@@ -59,30 +68,30 @@ func createNewServerInstanceStructure(server, t, port string) (newInstancePath s
 	newFile = fmt.Sprintf("%s/logs", server)
 	os.Remove(newFile)
 	os.Symlink(newInstancePath+"/logs", newFile)
-	if t == "running" {
-		base := getBaseFromServer(server)
+	if t == typelib.RUNNING {
+		base := GetBaseFromServer(server)
 		newFile = fmt.Sprintf("%s/logs_%s", base, os.Getenv("identifier"))
 		os.Remove(newFile)
 		os.Symlink(newInstancePath+"/logs", newFile)
 	}
 	newFilePath := fmt.Sprintf("%s/%s.jar", newInstancePath, os.Getenv("identifier"))
-	err = os.Symlink(fmt.Sprintf("%s/%s.jar", server, getFileFromPath(server)), newFilePath)
+	err = os.Symlink(fmt.Sprintf("%s/%s.jar", server, GetFileFromPath(server)), newFilePath)
 	if err != nil {
 		return
 	}
-	err = copyPropertyFile(newInstancePath, port)
+	err = copyPropertyFile(newInstancePath, port, t)
 	return
 }
 
-func symlinkFolder(server, t string) error {
+func SymlinkFolder(server string, t typelib.ServerType) error {
 	newFile := fmt.Sprintf("%s-%s", os.Getenv("identifier"), t)
 	os.Remove(newFile)
 	return os.Symlink(server, newFile)
 }
 
-func getFirstServerDir(wd, t string) (name string, err error) {
+func GetFirstServerDir(wd string, t typelib.ServerType) (name string, err error) {
 	fileName := fmt.Sprintf("%s/%s-%s", wd, os.Getenv("identifier"), t)
-	if fileExists(fileName) { // Might change this to do it manualy and actually check if it is a dir and so on.
+	if FileExists(fileName) { // Might change this to do it manualy and actually check if it is a dir and so on.
 		name, err = os.Readlink(fileName)
 		if err == nil {
 			return
@@ -101,7 +110,7 @@ func getFirstServerDir(wd, t string) (name string, err error) {
 	return
 }
 
-func getNewestServerDir(wd, t string) (name string, err error) {
+func getNewestServerDir(wd string, t typelib.ServerType) (name string, err error) {
 	files, err := ioutil.ReadDir(wd)
 	if err != nil {
 		return
@@ -133,7 +142,7 @@ func getNewestServerDir(wd, t string) (name string, err error) {
 		timeFile = file.ModTime()
 		nameFile = file.Name()
 	}
-	if (nameDir == "" || (t == "test" && timeFile.After(timeDir))) && nameFile != "" {
+	if (nameDir == "" || (t == typelib.TESTING && timeFile.After(timeDir))) && nameFile != "" {
 		nameDir = stripJar(nameFile)
 		err = os.Mkdir(nameDir, 0755)
 		if err != nil {
@@ -147,12 +156,12 @@ func getNewestServerDir(wd, t string) (name string, err error) {
 	return nameDir, nil
 }
 
-func fileExists(path string) bool {
+func FileExists(path string) bool {
 	_, err := os.Stat(path)
 	return !errors.Is(err, os.ErrNotExist)
 }
 
-func copyPropertyFile(instance, port string) (err error) {
+func copyPropertyFile(instance, port string, t typelib.ServerType) (err error) {
 	propertiesFileName := os.Getenv("properties_file_name")
 	if propertiesFileName == "" {
 		return
@@ -172,6 +181,7 @@ func copyPropertyFile(instance, port string) (err error) {
 	// optionally, resize scanner's capacity for lines over 64K, see next example
 	overritenPort := false
 	fileOut.WriteString("# This is a copied and modified propertie file.\n# Modifications are done by Vili\n")
+	fileOut.WriteString(fmt.Sprintf("vili.mode=%s\n", t))
 	for scanner.Scan() {
 		line := scanner.Text()
 		if strings.HasPrefix(line, os.Getenv("port_identifier")+"=") {
@@ -185,9 +195,4 @@ func copyPropertyFile(instance, port string) (err error) {
 		fileOut.WriteString(fmt.Sprintf("%s=%s\n", os.Getenv("port_identifier"), port))
 	}
 	return
-}
-
-func getBaseFromServer(server string) string {
-	path := strings.Split(server, "/")
-	return strings.Join(path[:len(path)-1], "/") //TODO handle if server is not long enugh aka correct
 }
