@@ -221,7 +221,10 @@ func Messuring() bool {
 	return !testing.server.mesureFrom.IsZero()
 }
 
-func ResetTest() {
+func ResetTest() { //TODO: Make better
+	if testing.server == nil {
+		return
+	}
 	if !Messuring() {
 		testing.server.mesureFrom = time.Now()
 		testing.server.warnings = 0
@@ -243,7 +246,7 @@ func getPort() string {
 }
 
 func SetAvailablePorts(from, to int) {
-	if availablePorts.Len() > 0 {
+	if availablePorts != nil {
 		return
 	}
 	availablePorts = list.New()
