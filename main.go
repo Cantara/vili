@@ -103,31 +103,6 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	server.SetAvailablePorts(from, to)
-	verifyChan := make(chan endpointToVerify, 10) // Arbitrary large number that hopefully will not block
-	go func() {
-		for {
-			etv := <-verifyChan
-			server.ResetTest()
-			if server.HasTesting() {
-				go func() {
-					rNew, err := requestHandler(endpoint+":"+server.GetPort(typelib.TESTING), etv.request, true)
-					if err != nil {
-						log.Println(err)
-						return
-					}
-					if !server.Messuring() {
-						return
-					}
-					err = verifyNewResponse(etv.oldResponse, rNew)
-					if err != nil {
-						server.AddBreaking(typelib.TESTING)
-					}
-					server.AddRequest(typelib.TESTING)
-				}()
-			}
-		}
-	}()
 	zipperChan := make(chan string, 1)
 	go func() {
 		for {
@@ -139,10 +114,35 @@ func main() {
 		}
 	}()
 
-	err = server.InitServers(wd, zipperChan)
+	verifyChan := make(chan endpointToVerify, 10) // Arbitrary large number that hopefully will not block
+	serv, err := server.NewServer(wd, zipperChan, from, to)
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	go func() {
+		for {
+			etv := <-verifyChan
+			serv.ResetTest()
+			if serv.HasTesting() {
+				go func() {
+					rNew, err := requestHandler(endpoint+":"+serv.GetPort(typelib.TESTING), etv.request, true)
+					if err != nil {
+						log.Println(err)
+						return
+					}
+					if !serv.Messuring() {
+						return
+					}
+					err = verifyNewResponse(etv.oldResponse, rNew)
+					if err != nil {
+						serv.AddBreaking(typelib.TESTING)
+					}
+					serv.AddRequest(typelib.TESTING)
+				}()
+			}
+		}
+	}()
 
 	watcher, err := inotify.NewWatcher()
 	if err != nil {
@@ -166,7 +166,7 @@ func main() {
 					continue
 				}
 				time.Sleep(time.Second * 2) //Sleep an arbitrary amout of time so the file is done writing before we try to execute it
-				server.NewTesting(ev.Name)
+				serv.NewTesting(ev.Name)
 			case err := <-watcher.Error:
 				log.Println("error:", err)
 			}
@@ -174,7 +174,7 @@ func main() {
 	}()
 
 	if os.Getenv("manualcontrol") == "true" {
-		serv := struct {
+		servData := struct {
 			Identity string `json:"identity"`
 			Uid      string `json:"uid"`
 			Ip       string `json:"ip"`
@@ -187,7 +187,7 @@ func main() {
 			TestingV: "unknown",
 		}
 		viliDashBaseURI := "https://api-devtest.entraos.io/vili-dash"
-		err = post(viliDashBaseURI+"/register/server", &serv, &serv)
+		err = post(viliDashBaseURI+"/register/server", &servData, &servData)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -195,16 +195,16 @@ func main() {
 			for {
 				time.Sleep(time.Minute)
 				var vda viliDashAction
-				err = get(viliDashBaseURI+"/action/"+os.Getenv("identifier")+"/"+serv.Uid, &vda)
+				err = get(viliDashBaseURI+"/action/"+os.Getenv("identifier")+"/"+servData.Uid, &vda)
 				if err != nil {
 					log.Println(err)
 					continue
 				}
 				switch vda.Action {
 				case "deploy":
-					server.Deploy()
+					serv.Deploy()
 				case "restart":
-					err = server.Restart(typelib.FromString(vda.Server))
+					err = serv.Restart(typelib.FromString(vda.Server))
 					if err != nil {
 						log.Println(err)
 					}
@@ -215,7 +215,7 @@ func main() {
 
 	s := &http.Server{
 		Addr:           ":" + os.Getenv("port"),
-		Handler:        http.HandlerFunc(reqHandler(verifyChan)),
+		Handler:        http.HandlerFunc(reqHandler(serv, verifyChan)),
 		ReadTimeout:    10 * time.Second,
 		WriteTimeout:   10 * time.Second,
 		MaxHeaderBytes: 1 << 20,
@@ -254,9 +254,9 @@ func post(uri string, data interface{}, out interface{}) (err error) {
 	return
 }
 
-func reqHandler(etv chan<- endpointToVerify) http.HandlerFunc {
+func reqHandler(serv server.Server, etv chan<- endpointToVerify) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		rOld, err := requestHandler(endpoint+":"+server.GetPort(typelib.RUNNING), r, false)
+		rOld, err := requestHandler(endpoint+":"+serv.GetPort(typelib.RUNNING), r, false)
 		if err != nil {
 			log.Println(err)
 			return
@@ -273,7 +273,7 @@ func reqHandler(etv chan<- endpointToVerify) http.HandlerFunc {
 			}
 		}
 		io.Copy(w, rOld.Body)
-		server.AddRequest(typelib.RUNNING)
+		serv.AddRequest(typelib.RUNNING)
 
 		etv <- endpointToVerify{
 			oldResponse: rOld,
