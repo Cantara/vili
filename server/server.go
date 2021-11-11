@@ -185,6 +185,11 @@ func (s *Server) setAvailablePorts(from, to int) {
 func (s *Server) Deploy() {
 	log.Println("DEPLOYING NEW RUNNING SERVER")
 	s.testing.mutex.Lock()
+	if s.testing.servlet == nil {
+		log.Info("Nothing to deploy")
+		s.testing.mutex.Unlock()
+		return
+	}
 	server := s.testing.dir
 	s.testing.servlet.Kill()
 	s.availablePorts.PushFront(s.testing.servlet.Port)
@@ -205,6 +210,9 @@ func (s *Server) Restart(t typelib.ServerType) (err error) {
 	case typelib.RUNNING:
 		err = s.newServer(s.running.dir, t)
 	case typelib.TESTING:
+		if s.testing.servlet == nil {
+			return
+		}
 		err = s.newServer(s.testing.dir, t)
 	}
 	return
