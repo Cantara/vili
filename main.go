@@ -180,7 +180,7 @@ func main() {
 			RunningV string `json:"running_version"`
 			TestingV string `json:"testing_version"`
 		}{
-			Identity: os.Getenv("identity"),
+			Identity: os.Getenv("identifier"),
 			Ip:       "0.0.0.0",
 			RunningV: "unknown",
 			TestingV: "unknown",
@@ -274,6 +274,7 @@ func reqHandler(serv *server.Server, etv chan<- endpointToVerify) http.HandlerFu
 			}
 		}
 		io.Copy(w, rOld.Body)
+		rOld.Body.Close()
 		serv.AddRequest(typelib.RUNNING)
 
 		etv <- endpointToVerify{
