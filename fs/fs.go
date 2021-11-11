@@ -68,12 +68,10 @@ func CreateNewServerInstanceStructure(server string, t typelib.ServerType, port 
 	newFile = fmt.Sprintf("%s/logs", server)
 	os.Remove(newFile)
 	os.Symlink(newInstancePath+"/logs", newFile)
-	if t == typelib.RUNNING {
-		base := GetBaseFromServer(server)
-		newFile = fmt.Sprintf("%s/logs_%s", base, os.Getenv("identifier"))
-		os.Remove(newFile)
-		os.Symlink(newInstancePath+"/logs", newFile)
-	}
+	base := GetBaseFromServer(server)
+	newFile = fmt.Sprintf("%s/logs_%s-%s", base, os.Getenv("identifier"), t)
+	os.Remove(newFile)
+	os.Symlink(newInstancePath+"/logs", newFile)
 	newFilePath := fmt.Sprintf("%s/%s.jar", newInstancePath, os.Getenv("identifier"))
 	err = os.Symlink(fmt.Sprintf("%s/%s.jar", server, GetFileFromPath(server)), newFilePath)
 	if err != nil {
