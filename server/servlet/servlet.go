@@ -58,7 +58,7 @@ func (s *Servlet) ResetTestData() {
 }
 
 func (s Servlet) IsRunning() bool {
-	return s.cmd.Signal(syscall.Signal(0)) == nil
+	return s.cmd.Process.Signal(syscall.Signal(0)) == nil
 }
 
 func NewServlet(serverFolder, port string) (servlet Servlet, err error) {

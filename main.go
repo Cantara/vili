@@ -127,7 +127,7 @@ func main() {
 			serv.ResetTest()
 			if serv.HasTesting() {
 				go func() {
-					rNew, err := requestHandler(endpoint+":"+serv.GetPort(typelib.TESTING), etv.request, true)
+					rNew, err := requestHandler(endpoint+":"+serv.GetPort(typelib.TESTING), etv.request, &serv, true)
 					if err != nil {
 						log.Println(err)
 						return
@@ -257,7 +257,7 @@ func post(uri string, data interface{}, out interface{}) (err error) {
 
 func reqHandler(serv *server.Server, etv chan<- endpointToVerify) http.HandlerFunc { //TODO Remove dependencie on pointer
 	return func(w http.ResponseWriter, r *http.Request) {
-		rOld, err := requestHandler(endpoint+":"+serv.GetPort(typelib.RUNNING), r, false)
+		rOld, err := requestHandler(endpoint+":"+serv.GetPort(typelib.RUNNING), r, serv, false)
 		if err != nil {
 			log.Println(err)
 			return
