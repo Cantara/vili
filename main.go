@@ -132,6 +132,7 @@ func main() {
 						log.Println(err)
 						return
 					}
+					defer rNew.Body.Close()
 					err = verifyNewResponse(etv.oldResponse, rNew)
 					if err != nil {
 						serv.AddBreaking(typelib.TESTING)
