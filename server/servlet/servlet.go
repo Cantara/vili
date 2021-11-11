@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	log "github.com/cantara/bragi"
@@ -54,6 +55,10 @@ func (s *Servlet) ResetTestData() {
 	atomic.StoreUint64(&s.errors, 0)
 	atomic.StoreUint64(&s.breaking, 0)
 	atomic.StoreUint64(&s.requests, 0)
+}
+
+func (s Servlet) IsRunning() bool {
+	return s.cmd.Signal(syscall.Signal(0)) == nil
 }
 
 func NewServlet(serverFolder, port string) (servlet Servlet, err error) {

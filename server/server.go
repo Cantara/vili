@@ -205,6 +205,19 @@ func (s *Server) Deploy() {
 	return
 }
 
+func (s Server) IsRunning(t typelib.ServerType) bool {
+	switch t {
+	case typelib.RUNNING:
+		return s.running.servlet.IsRunning()
+	case typelib.TESTING:
+		if s.testing.servlet == nil {
+			return false
+		}
+		return s.testing.servlet.IsRunning()
+	}
+	return false
+}
+
 func (s *Server) Restart(t typelib.ServerType) (err error) {
 	switch t {
 	case typelib.RUNNING:

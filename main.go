@@ -284,7 +284,7 @@ func reqHandler(serv *server.Server, etv chan<- endpointToVerify) http.HandlerFu
 	}
 }
 
-func requestHandler(host string, r *http.Request, test bool) (*http.Response, error) { // Return response
+func requestHandler(host string, r *http.Request, serv *server.Server, test bool) (*http.Response, error) { // Return response
 	r.URL.Scheme = os.Getenv("scheme")
 	r.URL.Host = host
 	var body io.ReadCloser
@@ -311,6 +311,16 @@ func requestHandler(host string, r *http.Request, test bool) (*http.Response, er
 			prefix = "[TEST]"
 		}
 		log.Printf("%s %s %s", prefix, resp.Status, r.URL)
+	} else {
+		if !test {
+			if !serv.IsRunning(typelib.RUNNING) {
+				serv.Restart(typelib.RUNNING)
+			}
+		} else {
+			if !serv.IsRunning(typelib.TESTING) {
+				serv.Restart(typelib.TESTING)
+			}
+		}
 	}
 	return resp, e
 }
