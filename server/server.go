@@ -91,11 +91,13 @@ func (s *Server) newServer(path string, t typelib.ServerType) (err error) {
 		s.running.mutex.Lock()
 		oldServer, s.running.servlet = s.running.servlet, &serv
 		s.running.dir = path
+		s.running.once = *new(sync.Once)
 		s.running.mutex.Unlock()
 	case typelib.TESTING:
 		s.testing.mutex.Lock()
 		oldServer, s.testing.servlet = s.testing.servlet, &serv
 		s.testing.dir = path
+		s.testing.once = *new(sync.Once)
 		s.testing.mutex.Unlock()
 	}
 
@@ -218,7 +220,8 @@ func (s Server) IsRunning(t typelib.ServerType) bool {
 	return false
 }
 
-func (s *Server) Restart(t typelib.ServerType) (err error) {
+func (s *Server) restart(t typelib.ServerType) (err error) {
+	log.Println("RESTARTING ", t)
 	switch t {
 	case typelib.RUNNING:
 		err = s.newServer(s.running.dir, t)
@@ -229,6 +232,18 @@ func (s *Server) Restart(t typelib.ServerType) (err error) {
 		err = s.newServer(s.testing.dir, t)
 	}
 	return
+}
+func (s *Server) Restart(t typelib.ServerType) {
+	r := func() {
+		err := s.restart(t)
+		log.AddError(err).Warning("While restarting server: ", t)
+	}
+	switch t {
+	case typelib.RUNNING:
+		s.running.once.Do(r)
+	case typelib.TESTING:
+		s.testing.once.Do(r)
+	}
 }
 
 func (s *Server) NewTesting(serv string) (err error) {

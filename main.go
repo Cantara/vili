@@ -206,10 +206,7 @@ func main() {
 				case "deploy":
 					serv.Deploy()
 				case "restart":
-					err = serv.Restart(typelib.FromString(vda.Server))
-					if err != nil {
-						log.Println(err)
-					}
+					serv.Restart(typelib.FromString(vda.Server))
 				}
 			}
 		}()
