@@ -147,7 +147,7 @@ func (s *Server) HasTesting() bool {
 func (s *Server) TestingDuration() time.Duration {
 	s.testing.mutex.Lock()
 	defer s.testing.mutex.Unlock()
-	if s.testing.servlet != nil {
+	if s.testing.servlet == nil {
 		return time.Duration(0)
 	}
 	return time.Now().Sub(s.testing.mesureFrom)
