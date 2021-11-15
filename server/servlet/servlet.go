@@ -76,6 +76,8 @@ func NewServlet(serverFolder, port string) (servlet Servlet, err error) {
 		cmd = exec.Command("java", fmt.Sprintf("-D%s=%s", os.Getenv("port_identifier"), port), "-jar", fmt.Sprintf("%s/%s.jar", serverFolder, os.Getenv("identifier")))
 	}
 	cmd.Dir = serverFolder
+	cmd.Stdout = stdOut
+	cmd.Stderr = stdErr
 	log.Debug(cmd)
 	err = cmd.Start()
 	if err != nil {
