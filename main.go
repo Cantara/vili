@@ -261,7 +261,7 @@ func reqHandler(serv *server.Server, etv chan<- endpointToVerify) http.HandlerFu
 	return func(w http.ResponseWriter, r *http.Request) {
 		rOld, err := requestHandler(endpoint+":"+serv.GetPort(typelib.RUNNING), r, serv, false)
 		if err != nil {
-			log.Println(err)
+			log.AddError(err).Info("While proxying to running")
 			return
 		}
 		for key, vals := range rOld.Header {
@@ -312,7 +312,9 @@ func requestHandler(host string, r *http.Request, serv *server.Server, test bool
 		if test {
 			prefix = "[TEST]"
 		}
-		log.Printf("%s %s %s", prefix, resp.Status, r.URL)
+		if !strings.HasSuffix(r.URL.String(), "health") {
+			log.Printf("%s %s %s", prefix, resp.Status, r.URL)
+		}
 	} else {
 		if !test {
 			if !serv.IsRunning(typelib.RUNNING) {
