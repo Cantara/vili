@@ -106,6 +106,7 @@ func (s *Server) newServer(path string, t typelib.ServerType) (err error) {
 		oldServer.Kill()
 		s.availablePorts.PushFront(oldServer.Port)
 	}
+	s.ResetTest()
 	return
 }
 
