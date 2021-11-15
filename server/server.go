@@ -63,7 +63,7 @@ func NewServer(workingDir string, of chan<- string, portrangeFrom, portrangeTo i
 }
 
 func (s Server) reliabilityScore() float64 {
-	if s.testing.servlet == nil || time.Now().Sub(s.testing.mesureFrom) < time.Minute*1 {
+	if s.TestingDuration() < time.Minute*1 {
 		return -1
 	}
 	return s.testing.servlet.ReliabilityScore() - s.running.servlet.ReliabilityScore()
@@ -143,6 +143,15 @@ func (s *Server) HasTesting() bool {
 	return s.testing.servlet != nil
 }
 
+func (s *Server) TestingDuration() time.Duration {
+	s.testing.mutex.Lock()
+	defer s.testing.mutex.Unlock()
+	if s.testing.servlet != nil {
+		return time.Duration(0)
+	}
+	return time.Now().Sub(s.testing.mesureFrom)
+}
+
 func (s *Server) Messuring() bool {
 	if s.testing.servlet == nil {
 		return false
@@ -156,16 +165,14 @@ func (s *Server) ResetTest() { //TODO: Make better
 	if !s.HasTesting() {
 		return
 	}
-	if !s.Messuring() {
-		s.testing.mutex.Lock()
-		s.testing.mesureFrom = time.Now()
-		s.testing.servlet.ResetTestData()
-		s.testing.mutex.Unlock()
-		s.running.mutex.Lock()
-		s.running.mesureFrom = time.Now()
-		s.running.servlet.ResetTestData()
-		s.running.mutex.Unlock()
-	}
+	s.testing.mutex.Lock()
+	s.testing.mesureFrom = time.Now()
+	s.testing.servlet.ResetTestData()
+	s.testing.mutex.Unlock()
+	s.running.mutex.Lock()
+	s.running.mesureFrom = time.Now()
+	s.running.servlet.ResetTestData()
+	s.running.mutex.Unlock()
 }
 
 func (s Server) getAvailablePort() string {

@@ -128,7 +128,6 @@ func main() {
 	go func() {
 		for {
 			etv := <-verifyChan
-			serv.ResetTest()
 			if serv.HasTesting() {
 				go func() {
 					rNew, err := requestHandler(endpoint+":"+serv.GetPort(typelib.TESTING), etv.request, &serv, true)
@@ -143,6 +142,9 @@ func main() {
 					}
 					serv.AddRequest(typelib.TESTING)
 					serv.CheckReliability()
+					if time.Minute*10 <= serv.TestingDuration() {
+						serv.ResetTest()
+					}
 				}()
 			}
 		}
