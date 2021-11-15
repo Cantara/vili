@@ -24,7 +24,7 @@ type servletHandler struct {
 	servlet    *servlet.Servlet
 	mesureFrom time.Time
 	mutex      sync.Mutex
-	once       sync.Once
+	isDying    bool
 	serverType typelib.ServerType
 	dir        string
 }
@@ -91,13 +91,13 @@ func (s *Server) newServer(path string, t typelib.ServerType) (err error) {
 		s.running.mutex.Lock()
 		oldServer, s.running.servlet = s.running.servlet, &serv
 		s.running.dir = path
-		s.running.once = *new(sync.Once)
+		s.running.isDying = false
 		s.running.mutex.Unlock()
 	case typelib.TESTING:
 		s.testing.mutex.Lock()
 		oldServer, s.testing.servlet = s.testing.servlet, &serv
 		s.testing.dir = path
-		s.testing.once = *new(sync.Once)
+		s.testing.isDying = false
 		s.testing.mutex.Unlock()
 	}
 
@@ -220,30 +220,31 @@ func (s Server) IsRunning(t typelib.ServerType) bool {
 	return false
 }
 
-func (s *Server) restart(t typelib.ServerType) (err error) {
+func (s *Server) Restart(t typelib.ServerType) (err error) {
 	log.Println("RESTARTING ", t)
 	switch t {
 	case typelib.RUNNING:
+		s.running.mutex.Lock()
+		if s.running.isDying {
+			s.running.mutex.Unlock()
+			return nil
+		}
+		s.running.isDying = true
+		s.running.mutex.Unlock()
+
 		err = s.newServer(s.running.dir, t)
 	case typelib.TESTING:
-		if s.testing.servlet == nil {
+		s.testing.mutex.Lock()
+		if s.testing.isDying || s.testing.servlet == nil {
+			s.testing.mutex.Unlock()
 			return
 		}
+		s.testing.isDying = true
+		s.testing.mutex.Unlock()
+
 		err = s.newServer(s.testing.dir, t)
 	}
 	return
-}
-func (s *Server) Restart(t typelib.ServerType) {
-	r := func() {
-		err := s.restart(t)
-		log.AddError(err).Warning("While restarting server: ", t)
-	}
-	switch t {
-	case typelib.RUNNING:
-		s.running.once.Do(r)
-	case typelib.TESTING:
-		s.testing.once.Do(r)
-	}
 }
 
 func (s *Server) NewTesting(serv string) (err error) {
@@ -265,7 +266,14 @@ func (s *Server) NewTesting(serv string) (err error) {
 func (s *Server) CheckReliability() {
 	log.Println("reliabilityScore of testingServer compared to runningServer: ", s.reliabilityScore())
 	if s.reliabilityScore() >= -0.25 {
-		s.testing.once.Do(s.Deploy)
+		s.testing.mutex.Lock()
+		if s.testing.isDying || s.testing.servlet == nil {
+			s.testing.mutex.Unlock()
+			return
+		}
+		s.testing.isDying = true
+		s.testing.mutex.Unlock()
+		s.Deploy()
 	}
 }
 
