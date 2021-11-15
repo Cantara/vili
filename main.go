@@ -104,12 +104,16 @@ func main() {
 		log.Fatal(err)
 	}
 	zipperChan := make(chan string, 1)
+	fileSystem := os.DirFS(wd)
 	go func() {
 		for {
 			oldFolder := <-zipperChan
 			err = z.ZipDir(oldFolder)
 			if err != nil {
 				log.Println(err)
+			}
+			for fs.GetDirSize(fileSystem, "archive") > 1<<30 {
+				os.Remove(fs.GetOldestFile(fileSystem, "archive"))
 			}
 		}
 	}()

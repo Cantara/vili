@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"io/fs"
 	"io/ioutil"
 	"os"
 	"strings"
@@ -193,4 +194,49 @@ func copyPropertyFile(instance, port string, t typelib.ServerType) (err error) {
 		fileOut.WriteString(fmt.Sprintf("%s=%s\n", os.Getenv("port_identifier"), port))
 	}
 	return
+}
+
+func GetOldestFile(fsys fs.FS, dir string) string {
+	oldestPath := ""
+	oldest := time.Now()
+	fs.WalkDir(fsys, dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			log.AddError(err).Info("While reading dir to get oldest file")
+			return nil
+		}
+		if !d.IsDir() {
+			inf, err := d.Info()
+			if err != nil {
+				log.AddError(err).Info("While getting file info to get oldest file")
+				return nil
+			}
+			if oldest.Before(inf.ModTime()) {
+				return nil
+			}
+			oldestPath = path
+			oldest = inf.ModTime()
+		}
+		return nil
+	})
+	return oldestPath
+}
+
+func GetDirSize(fsys fs.FS, dir string) int64 {
+	var total int64
+	fs.WalkDir(fsys, dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			log.AddError(err).Info("While reading dir to get size")
+			return nil
+		}
+		if !d.IsDir() {
+			inf, err := d.Info()
+			if err != nil {
+				log.AddError(err).Info("While getting file info to get dir size")
+				return nil
+			}
+			total += inf.Size()
+		}
+		return nil
+	})
+	return total
 }
