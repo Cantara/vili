@@ -11,6 +11,11 @@ Vili will also alway save all information needed to run any application by itsel
 
 Vili tests new versions of your servers with real data before showing them to your users
 
+## Inspiration
+
+Poka-yoke (ポカヨケ, [poka joke]) is a Japanese term that means "mistake-proofing" or "inadvertent error prevention". A poka-yoke is any mechanism in a process that helps an equipment operator avoid (yokeru) mistakes (poka) and defects by preventing, correcting, or drawing attention to human errors as they occur.
+
+
 ## Dictionary
 
 * Base will refer to the directory in which vili has as its root.
