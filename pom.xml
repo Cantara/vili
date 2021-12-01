@@ -17,8 +17,6 @@
     <go.wrapper.plugin.version>2.3.9</go.wrapper.plugin.version>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <maven.build.timestamp.format>yyyyMMddHHmm</maven.build.timestamp.format>
-    <mvn.version>3.0</mvn.version>
-    <final.extension></final.extension>
   </properties>
 
   <scm>
@@ -35,10 +33,6 @@
       <distribution>repo</distribution>
     </license>
   </licenses>
-
-  <prerequisites>
-    <maven>${mvn.version}</maven>
-  </prerequisites>
 
   <profiles>
     <profile>
