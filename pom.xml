@@ -3,7 +3,7 @@
 
   <groupId>no.cantara.vili</groupId>
   <artifactId>vili</artifactId>
-  <version>0.1.1-SNAPSHOT</version>
+  <version>0.1.2-SNAPSHOT</version>
   <packaging>mvn-golang</packaging>
 
   <name>Vili</name>
