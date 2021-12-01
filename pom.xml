@@ -3,7 +3,7 @@
 
   <groupId>no.cantara.vili</groupId>
   <artifactId>vili</artifactId>
-  <version>0.1.1</version>
+  <version>0.1.2-SNAPSHOT</version>
   <packaging>mvn-golang</packaging>
 
   <name>Vili</name>
@@ -22,7 +22,7 @@
     <developerConnection>scm:git:ssh://git@github.com/Cantara/vili.git</developerConnection>
     <connection>scm:git:https://github.com/Cantara/vili.git</connection>
     <url>https://github.com/Cantara/vili</url>
-    <tag>vili-0.1.1</tag>
+    <tag>HEAD</tag>
   </scm>
 
   <licenses>
