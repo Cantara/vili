@@ -3,6 +3,7 @@ vili
 *.pem
 .env
 *.log
+bin/*
 
 # Testing suff
 archive
