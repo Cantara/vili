@@ -20,7 +20,7 @@
   </properties>
 
   <scm>
-    <developerConnection>scm:git:ssh://git@github.com:Cantara/vili.git</developerConnection>
+    <developerConnection>scm:git:ssh://git@github.com/Cantara/vili.git</developerConnection>
     <connection>scm:git:https://github.com/Cantara/vili.git</connection>
     <url>https://github.com/Cantara/vili</url>
     <tag>HEAD</tag>
@@ -75,15 +75,6 @@
         <executions>
           <execution>
             <id>default-build</id>
-            <configuration>
-            </configuration>
-          </execution>
-          <execution>
-            <id>golang-run</id>
-            <phase>verify</phase>
-            <goals>
-              <goal>run</goal>
-            </goals>
             <configuration>
             </configuration>
           </execution>
