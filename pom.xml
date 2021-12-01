@@ -21,7 +21,12 @@
     <final.extension></final.extension>
   </properties>
 
-  <inceptionYear>2021</inceptionYear>
+  <scm>
+    <developerConnection>scm:git:ssh://git@github.com:Cantara/vili.git</developerConnection>
+    <connection>scm:git:https://github.com/Cantara/vili.git</connection>
+    <url>https://github.com/Cantara/vili</url>
+    <tag>HEAD</tag>
+  </scm>
 
   <licenses>
     <license>
