@@ -7,9 +7,9 @@
   <version>0.1.0-SNAPSHOT</version>
   <packaging>mvn-golang</packaging>
 
-  <name>Hello GoLang</name>
-  <description>Simple 'Hello World!' GoLang example</description>
-  <url>https://github.com/raydac/mvn-golang</url>
+  <name>Vili</name>
+  <description>Testing tool for live data tests</description>
+  <url>https://github.com/cantara/vili</url>
 
   <properties>
     <mvn.golang.go.version>1.17.3</mvn.golang.go.version>
@@ -93,4 +93,16 @@
     </plugins>
   </build>
 
+  <distributionManagement>
+    <repository>
+      <id>cantara-releases</id>
+      <name>Cantara Release Repository</name>
+      <url>https://mvnrepo.cantara.no/content/repositories/releases/</url>
+    </repository>
+    <snapshotRepository>
+      <id>cantara-snapshots</id>
+      <name>Cantara Snapshot Repository</name>
+      <url>https://mvnrepo.cantara.no/content/repositories/snapshots/</url>
+    </snapshotRepository>
+  </distributionManagement>
 </project>
