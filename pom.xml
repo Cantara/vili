@@ -35,6 +35,17 @@
 
   <profiles>
     <profile>
+      <id>linux-profile</id>
+      <activation>
+        <os>
+          <family>linux</family>
+        </os>
+      </activation>
+      <properties>
+        <final.extension></final.extension>
+      </properties>
+    </profile>
+    <profile>
       <id>windows-profile</id>
       <activation>
         <os>
@@ -79,16 +90,9 @@
           </execution>
         </executions>
       </plugin>
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-release-plugin</artifactId>
-        <version>3.0.0-M4</version>
-        <configuration>
-          <tagNameFormat>v${version}</tagNameFormat>
-        </configuration>
-      </plugin>
     </plugins>
   </build>
+
 
   <distributionManagement>
     <repository>
