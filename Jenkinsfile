@@ -42,9 +42,14 @@ pipeline {
         }
         stage("deploy") {
             steps {
-                script {
-                    deployApp(outFile, vers, release, NEXUS_CREDS)
+                echo 'deplying the application...'
+                echo "deploying version ${vers}"
+                if (release) {
+                    sh 'curl -v -u $NEXUS_CREDS --upload-file $outFile https://mvnrepo.cantara.no/content/repositories/releases/no/cantara/vili/vili/$vers/$outFile'
+                } else {
+                    sh 'curl -v -u $NEXUS_CREDS --upload-file $outFile https://mvnrepo.cantara.no/content/repositories/snapshots/no/cantara/vili/vili/$vers/$outFile'
                 }
+                sh "rm ${outFile}"
             }
         }
     }
