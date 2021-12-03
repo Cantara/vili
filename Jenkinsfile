@@ -7,7 +7,7 @@ pipeline {
         go 'Go 1.17'
     }
     environment {
-        NEXUS_CREDS = credentials('1fdafbe4-5486-4347-ac7d-acb9d6710079')
+        NEXUS_CREDS = credentials('Cantara-NEXUS')
     }
     stages {
         stage("pre") {
@@ -42,14 +42,16 @@ pipeline {
         }
         stage("deploy") {
             steps {
-                echo 'deplying the application...'
-                echo "deploying version ${vers}"
-                if (release) {
-                    sh 'curl -v -u $NEXUS_CREDS --upload-file $outFile https://mvnrepo.cantara.no/content/repositories/releases/no/cantara/vili/vili/$vers/$outFile'
-                } else {
-                    sh 'curl -v -u $NEXUS_CREDS --upload-file $outFile https://mvnrepo.cantara.no/content/repositories/snapshots/no/cantara/vili/vili/$vers/$outFile'
+                script {
+                    echo 'deplying the application...'
+                    echo "deploying version ${vers}"
+                    if (release) {
+                        sh 'curl -v -u $NEXUS_CREDS '+"--upload-file ${outFile} https://mvnrepo.cantara.no/content/repositories/releases/no/cantara/vili/vili/${vers}/${outFile}"
+                    } else {
+                        sh 'curl -v -u $NEXUS_CREDS '+"--upload-file ${outFile} https://mvnrepo.cantara.no/content/repositories/snapshots/no/cantara/vili/vili/${vers}/${outFile}"
+                    }
+                    sh "rm ${outFile}"
                 }
-                sh "rm ${outFile}"
             }
         }
     }
@@ -65,15 +67,4 @@ def buildApp(outFile) {
     sh 'ls'
     sh "CGO_ENABLED=0 GOOD=linux GOARCH=amd64 go build -o ${outFile}"
     sh 'ls'
-}
-
-def deployApp(outFile, vers, release, creds) {
-    echo 'deplying the application...'
-    echo "deploying version ${vers}"
-    if (release) {
-        sh "curl -v -u ${creds} --upload-file ${outFile} https://mvnrepo.cantara.no/content/repositories/releases/no/cantara/vili/vili/${vers}/${outFile}"
-    } else {
-        sh "curl -v -u ${creds} --upload-file ${outFile} https://mvnrepo.cantara.no/content/repositories/snapshots/no/cantara/vili/vili/${vers}/${outFile}"
-    }
-    sh "rm ${outFile}"
 }
