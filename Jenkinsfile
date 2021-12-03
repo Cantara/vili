@@ -19,19 +19,19 @@ pipeline {
                 }
             }
         }
+        stage("test") {
+            steps {
+                script {
+                    testApp()
+                }
+            }
+        }
         stage("build") {
             steps {
                 script {
                     echo "V: ${vers}"
                     echo "File: ${outFile}"
                     buildApp(outFile)
-                }
-            }
-        }
-        stage("test") {
-            steps {
-                script {
-                    testApp()
                 }
             }
         }
@@ -53,7 +53,7 @@ def buildApp(outFile) {
 
 def testApp() {
     echo 'testing the application...'
-    echo 'function recursive_for_loop {ls -1| while read f; do; if [ -d $f  -a ! -h $f ]; then; cd -- "$f"; echo "Doing something in folder `pwd`/$f"; recursive_for_loop; cd ..; fi;  done; }; recursive_for_loop'
+    sh './testRecursive.sh'
 }
 
 def deployApp(outFile, vers) {
