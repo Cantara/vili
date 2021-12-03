@@ -1,4 +1,5 @@
-function recursive_for_loop {
+#!/bin/sh
+recursive_for_loop() {
     ls -1| while read f; do
         if [ -d $f  -a ! -h $f ]; then
             cd -- "$f"
