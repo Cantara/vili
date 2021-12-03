@@ -9,22 +9,22 @@ pipeline {
         stage("pre") {
             steps {
                 script {
-                    echo "V: ${gitV} ${env.TAG_NAME}"
                     if (env.TAG_NAME) {
                         vers = "${env.TAG_NAME}"
                     } else {
                         vers = "${env.GIT_COMMIT}"
                     }
                     outFile = "Vili-${vers}"
+                    echo "New file: ${outFile}"
                 }
             }
         }
         stage("build") {
             steps {
                 script {
-                    echo "V: ${gitV}"
+                    echo "V: ${vers}"
                     echo "File: ${outFile}"
-                    buildApp()
+                    buildApp(outFile)
                 }
             }
         }
@@ -38,18 +38,16 @@ pipeline {
         stage("deploy") {
             steps {
                 script {
-                    deployApp()
+                    deployApp(outFile, vers)
                 }
             }
         }
     }
 }
-def buildApp() {
+def buildApp(outFile) {
     echo 'building the application...'
     sh 'ls'
-    echo "cd 'src'"
-    sh 'ls'
-    sh 'cd src && CGO_ENABLED=0 GOOD=linux GOARCH=amd64 go build -o ${outFile}'
+    sh "CGO_ENABLED=0 GOOD=linux GOARCH=amd64 go build -o ${outFile}"
     sh 'ls'
 }
 
@@ -58,7 +56,7 @@ def testApp() {
     echo 'function recursive_for_loop {ls -1| while read f; do; if [ -d $f  -a ! -h $f ]; then; cd -- "$f"; echo "Doing something in folder `pwd`/$f"; recursive_for_loop; cd ..; fi;  done; }; recursive_for_loop'
 }
 
-def deployApp() {
+def deployApp(outFile, vers) {
     echo 'deplying the application...'
     echo "deploying version ${vers}"
 }
