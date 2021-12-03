@@ -1,4 +1,5 @@
-def gitV
+def vers
+def outFile
 pipeline {
     agent any
     tools {
@@ -8,15 +9,21 @@ pipeline {
         stage("pre") {
             steps {
                 script {
-                    echo "V: ${gitV} ${VERSION} ${TAG_NAME}"
-                    gitV = sh(script: "git describe --abbrev=0 --tags", returnStdout: true).toString().trim()
+                    echo "V: ${gitV} ${env.TAG_NAME}"
+                    if (env.TAG_NAME) {
+                        vers = "${env.TAG_NAME}"
+                    } else {
+                        vers = "${env.GIT_COMMIT}"
+                    }
+                    outFile = "Vili-${vers}"
                 }
             }
         }
         stage("build") {
             steps {
                 script {
-                    echo "V: ${gitV} ${VERSION}"
+                    echo "V: ${gitV}"
+                    echo "File: ${outFile}"
                     buildApp()
                 }
             }
@@ -42,7 +49,7 @@ def buildApp() {
     sh 'ls'
     echo "cd 'src'"
     sh 'ls'
-    sh 'cd src && go build'
+    sh 'cd src && CGO_ENABLED=0 GOOD=linux GOARCH=amd64 go build -o ${outFile}'
     sh 'ls'
 }
 
@@ -53,5 +60,5 @@ def testApp() {
 
 def deployApp() {
     echo 'deplying the application...'
-    echo "deploying version ${params.VERSION}"
+    echo "deploying version ${vers}"
 }
