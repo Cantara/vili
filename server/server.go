@@ -10,6 +10,7 @@ import (
 	log "github.com/cantara/bragi"
 	"github.com/cantara/vili/fs"
 	"github.com/cantara/vili/server/servlet"
+	"github.com/cantara/vili/slack"
 	"github.com/cantara/vili/typelib"
 )
 
@@ -290,7 +291,7 @@ func (s *Server) NewTesting(serv string) (err error) {
 	return
 }
 
-func (s *Server) CheckReliability() {
+func (s *Server) CheckReliability(hostname string) {
 	log.Println("reliabilityScore of testingServer compared to runningServer: ", s.reliabilityScore())
 	if s.reliabilityScore() >= -0.25 {
 		s.testing.mutex.Lock()
@@ -300,7 +301,9 @@ func (s *Server) CheckReliability() {
 		}
 		s.testing.isDying = true
 		s.testing.mutex.Unlock()
+		go slack.Sendf("Vili started deploying new version on host: %s, with running version %s.", hostname, s.GetRunningVersion())
 		s.Deploy()
+		go slack.Sendf("Vili deployed new version on host: %s, with new running version %s.", hostname, s.GetRunningVersion())
 	}
 }
 

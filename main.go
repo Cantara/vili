@@ -78,6 +78,10 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	hostname, err := os.Hostname()
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	wd, err := os.Getwd()
 	if err != nil {
@@ -114,6 +118,7 @@ func main() {
 				log.Println(err)
 			}
 			for fs.GetDirSize(fileSystem, "archive") > 1<<30 {
+				go slack.Sendf("Archive too large, cleaning up on server: %s.", hostname)
 				os.Remove(fs.GetOldestFile(fileSystem, "archive"))
 			}
 		}
@@ -125,6 +130,7 @@ func main() {
 		log.Fatal(err)
 	}
 	defer serv.Kill()
+	go slack.Sendf("Vili startet initial servers on host: %s, with running version %s.", hostname, serv.GetRunningVersion())
 
 	go func() {
 		for {
