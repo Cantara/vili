@@ -72,7 +72,7 @@ func (s Server) reliabilityScore() float64 {
 }
 
 func (s *Server) newServer(path string, t typelib.ServerType) (err error) {
-	path = strings.Trim(path, "/")
+	path = strings.TrimRight(path, "/")
 	port := s.getAvailablePort()
 	newPath, err := fs.CreateNewServerInstanceStructure(path, t, port)
 	if err != nil {
