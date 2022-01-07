@@ -148,7 +148,7 @@ func main() {
 						serv.AddBreaking(typelib.TESTING)
 					}
 					serv.AddRequest(typelib.TESTING)
-					serv.CheckReliability()
+					serv.CheckReliability(hostname)
 					if time.Minute*10 <= serv.TestingDuration() {
 						serv.ResetTest()
 					}
