@@ -3,6 +3,7 @@ package server
 import (
 	"container/list"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -70,6 +71,7 @@ func (s Server) reliabilityScore() float64 {
 }
 
 func (s *Server) newServer(path string, t typelib.ServerType) (err error) {
+	path = strings.Trim(path, "/")
 	port := s.getAvailablePort()
 	newPath, err := fs.CreateNewServerInstanceStructure(path, t, port)
 	if err != nil {
@@ -107,7 +109,24 @@ func (s *Server) newServer(path string, t typelib.ServerType) (err error) {
 		s.availablePorts.PushFront(oldServer.Port)
 	}
 	s.ResetTest()
+	go s.watchServerStatus(path, t, &serv)
 	return
+}
+
+func (s *Server) watchServerStatus(path string, t typelib.ServerType, serv *servlet.Servlet) {
+	//sleepInterval := 1
+	for {
+		time.Sleep(1 * time.Minute)
+		if !serv.IsRunning() {
+			s.newServer(path, t)
+			return
+		}
+	}
+}
+
+func (s Server) GetRunningVersion() string {
+	path := strings.Split(s.running.dir, "/")
+	return path[len(path)-1]
 }
 
 func (s Server) GetPort(t typelib.ServerType) string {

@@ -1,5 +1,7 @@
 # Vili
 
+[![Build Status](https://jenkins.entraos.io/buildStatus/icon?job=Cantara-Vili-Multipipeline%2Fmain)](https://jenkins.entraos.io/job/Cantara-Vili-Multipipeline/job/main/)[![Go Report Card](https://goreportcard.com/badge/github.com/cantara/vili)](https://goreportcard.com/report/github.com/cantara/vili)
+
 Vili atempts to add a layer of integrety to your application. It does this by managing your versions and how they get shown. By takin inn your new jar files and structuringthem vili contains everything relevant for one runtime in its own place. Vili also cleans up after itself and archives old versions as zips.
 By executing two versions of your application and tailing their json logs can vili read out a metric on how good your new version is and through that decide if it sould be the running version based on REAL data from your users.
 If vili decides a update is approtiate it will kill off the application that is in testing and start a new version marked running. Then vili will move traffic from the previous running application to the new one and then kill the old running application.

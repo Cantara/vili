@@ -14,6 +14,7 @@ import (
 	log "github.com/cantara/bragi"
 	"github.com/cantara/vili/fs"
 	"github.com/cantara/vili/server"
+	"github.com/cantara/vili/slack"
 	"github.com/cantara/vili/typelib"
 	"github.com/cantara/vili/zip"
 	"github.com/joho/godotenv"
@@ -165,13 +166,15 @@ func main() {
 			select {
 			case ev := <-watcher.Event:
 				log.Println("event:", ev)
-				if !strings.HasSuffix(ev.Name, ".jar") {
+				name := strings.ToLower(ev.Name)
+				if !strings.HasSuffix(name, ".jar") {
 					continue
 				}
-				if ev.Name == os.Getenv("identifier")+".jar" {
+				if name == strings.ToLower(os.Getenv("identifier"))+".jar" {
 					continue
 				}
 				time.Sleep(time.Second * 2) //Sleep an arbitrary amout of time so the file is done writing before we try to execute it
+				go slack.Sendf("New version found, running version is: %s, starting to test version %s.", serv.GetRunningVersion(), ev.Name)
 				serv.NewTesting(ev.Name)
 			case err := <-watcher.Error:
 				log.Println("error:", err)
