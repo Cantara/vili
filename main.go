@@ -172,11 +172,16 @@ func main() {
 			select {
 			case ev := <-watcher.Event:
 				log.Println("event:", ev)
-				name := strings.ToLower(ev.Name)
+				path := strings.Split(ev.Name, "/")
+				name := strings.ToLower(path[len(path)-1])
+				identifier := strings.ToLower(os.Getenv("identifier"))
 				if !strings.HasSuffix(name, ".jar") {
 					continue
 				}
-				if strings.Contains(name, strings.ToLower(os.Getenv("identifier"))+".jar") {
+				if !strings.HasPrefix(name, identifier) {
+					continue
+				}
+				if name == identifier+".jar" {
 					continue
 				}
 				time.Sleep(time.Second * 2) //Sleep an arbitrary amout of time so the file is done writing before we try to execute it
