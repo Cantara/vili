@@ -176,7 +176,7 @@ func main() {
 				if !strings.HasSuffix(name, ".jar") {
 					continue
 				}
-				if name == strings.ToLower(os.Getenv("identifier"))+".jar" {
+				if strings.Contains(name, strings.ToLower(os.Getenv("identifier"))+".jar") {
 					continue
 				}
 				time.Sleep(time.Second * 2) //Sleep an arbitrary amout of time so the file is done writing before we try to execute it
