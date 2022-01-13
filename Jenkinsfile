@@ -19,7 +19,7 @@ pipeline {
                     } else {
                         vers = "${env.GIT_COMMIT}"
                     }
-                    outFile = "Vili-${vers}"
+                    outFile = "vili-${vers}"
                     echo "New file: ${outFile}"
                 }
             }
