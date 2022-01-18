@@ -130,7 +130,7 @@ func main() {
 		log.Fatal(err)
 	}
 	defer serv.Kill()
-	go slack.Sendf("Vili startet initial servers on host: %s, with running version %s.", hostname, serv.GetRunningVersion())
+	go slack.Sendf(":safety_pin: Vili startet initial servers on host: %s, with running version %s.", hostname, serv.GetRunningVersion())
 
 	go func() {
 		for {
@@ -185,7 +185,7 @@ func main() {
 					continue
 				}
 				time.Sleep(time.Second * 2) //Sleep an arbitrary amout of time so the file is done writing before we try to execute it
-				go slack.Sendf("New version found, running version is: %s, starting to test version %s.", serv.GetRunningVersion(), ev.Name)
+				go slack.Sendf(":safety_pin: New version found, running version is: %s, starting to test version %s.", serv.GetRunningVersion(), ev.Name)
 				serv.NewTesting(ev.Name)
 			case err := <-watcher.Error:
 				log.Println("error:", err)
@@ -345,7 +345,7 @@ func requestHandler(host string, r *http.Request, serv *server.Server, test bool
 	return resp, e
 }
 
-func verifyNewResponse(r, t *http.Response) error { // Take inn resonses
+func verifyNewResponse(r, t *http.Response) error { // Take inn responses
 	if r.StatusCode == t.StatusCode {
 		return nil
 	}
@@ -359,7 +359,7 @@ func verifyNewResponse(r, t *http.Response) error { // Take inn resonses
 
 Should the system use scripts to handle starting and stopping or should it just use the exev lib? Will using the the exec lib remove the connectivity between this program and the server itself? Does it matter if this program and the server is tightly coupeled. If this program crashed the server will be unreacheble anyways.
 
-Conclusion, the coupeling between this programm and the server does not matter. If this program crashes then the server will be unreachable anyways.
+Conclusion, the coupeling between this program and the server does not matter. If this program crashes then the server will be unreachable anyways.
 
 
 
