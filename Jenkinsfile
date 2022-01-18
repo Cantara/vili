@@ -46,9 +46,9 @@ pipeline {
                     echo 'deplying the application...'
                     echo "deploying version ${vers}"
                     if (release) {
-                        sh 'curl -v -u $NEXUS_CREDS '+"--upload-file ${outFile} https://mvnrepo.cantara.no/content/repositories/releases/no/cantara/vili/vili/${vers}/${outFile}"
+                        sh 'curl -v -u $NEXUS_CREDS '+"--upload-file ${outFile} https://mvnrepo.cantara.no/content/repositories/releases/no/cantara/gotools/vili/${vers}/${outFile}"
                     } else {
-                        sh 'curl -v -u $NEXUS_CREDS '+"--upload-file ${outFile} https://mvnrepo.cantara.no/content/repositories/snapshots/no/cantara/vili/vili/${vers}/${outFile}"
+                        sh 'curl -v -u $NEXUS_CREDS '+"--upload-file ${outFile} https://mvnrepo.cantara.no/content/repositories/snapshots/no/cantara/gotools/vili/${vers}/${outFile}"
                     }
                     sh "rm ${outFile}"
                 }
