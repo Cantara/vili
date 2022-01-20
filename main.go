@@ -62,6 +62,7 @@ func verifyConfig() error {
 
 func main() {
 	loadEnv()
+
 	logDir := os.Getenv("log_dir")
 	if logDir != "" {
 		log.SetPrefix("vili")
@@ -82,6 +83,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	slack.Sendf(":safety_pin: Vili starting on host: %s", hostname)
 
 	wd, err := os.Getwd()
 	if err != nil {
