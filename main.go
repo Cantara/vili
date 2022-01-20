@@ -187,7 +187,7 @@ func main() {
 					continue
 				}
 				time.Sleep(time.Second * 2) //Sleep an arbitrary amout of time so the file is done writing before we try to execute it
-				go slack.Sendf(":safety_pin: :new: New version found, running version is: %s, starting to test version %s.", serv.GetRunningVersion(), ev.Name)
+				go slack.Sendf(":safety_pin: :new: New version found, downloaded and deployed, running version is: %s, starting to test version %s.", serv.GetRunningVersion(), ev.Name)
 				serv.NewTesting(ev.Name)
 			case err := <-watcher.Error:
 				log.Println("error:", err)
