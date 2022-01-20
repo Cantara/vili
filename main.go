@@ -49,7 +49,7 @@ func verifyConfig() error {
 		return fmt.Errorf("No endpoint provided")
 	}
 	if !strings.Contains(os.Getenv("port_range"), "-") || strings.Contains(os.Getenv("port_range"), " ") {
-		return fmt.Errorf("Portrage is not a range in the format of <number>-<number>")
+		return fmt.Errorf("Portrange is not a range in the format of <number>-<number>")
 	}
 	if os.Getenv("identifier") == "" {
 		return fmt.Errorf("No identifier provided")
@@ -83,7 +83,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	slack.Sendf(":safety_pin: Vili starting on host: %s", hostname)
+	slack.Sendf(":safety_pin: :heart: Vili starting on host: %s", hostname)
 
 	wd, err := os.Getwd()
 	if err != nil {
@@ -132,7 +132,7 @@ func main() {
 		log.Fatal(err)
 	}
 	defer serv.Kill()
-	go slack.Sendf(":safety_pin: Vili startet initial servers on host: %s, with running version %s.", hostname, serv.GetRunningVersion())
+	go slack.Sendf(":safety_pin: :white_check_mark: Vili startet initial services on host: %s, with running version %s.", hostname, serv.GetRunningVersion())
 
 	go func() {
 		for {
@@ -187,7 +187,7 @@ func main() {
 					continue
 				}
 				time.Sleep(time.Second * 2) //Sleep an arbitrary amout of time so the file is done writing before we try to execute it
-				go slack.Sendf(":safety_pin: New version found, running version is: %s, starting to test version %s.", serv.GetRunningVersion(), ev.Name)
+				go slack.Sendf(":safety_pin: :new: New version found, running version is: %s, starting to test version %s.", serv.GetRunningVersion(), ev.Name)
 				serv.NewTesting(ev.Name)
 			case err := <-watcher.Error:
 				log.Println("error:", err)
