@@ -180,7 +180,7 @@ func copyPropertyFile(instance, port string, t typelib.ServerType) (err error) {
 	// optionally, resize scanner's capacity for lines over 64K, see next example
 	overritenPort := false
 	fileOut.WriteString("# This is a copied and modified propertie file.\n# Modifications are done by Vili\n")
-	fileOut.WriteString(fmt.Sprintf("vili.test=%b\n", t == typelib.TESTING))
+	fileOut.WriteString(fmt.Sprintf("vili.test=%t\n", t == typelib.TESTING))
 	for scanner.Scan() {
 		line := scanner.Text()
 		if strings.HasPrefix(line, os.Getenv("port_identifier")+"=") {
