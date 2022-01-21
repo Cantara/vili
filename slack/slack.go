@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	log "github.com/cantara/bragi"
 	"github.com/cantara/vili/whydah"
 )
 
