@@ -15,18 +15,44 @@ type slackMessage struct {
 	//	Attachments []string `json:"attachments"`
 }
 
-func SendChannel(message, slackId string) (err error) {
+type client struct {
+	appIcon string
+	env     string
+	envIcon string
+	service string
+}
+
+var Client client
+
+func NewClient(appIcon, envIcon, env, service string) client {
+	return client{
+		appIcon: appIcon,
+		env:     env,
+		envIcon: envIcon,
+		service: service,
+	}
+}
+
+func (c client) sendChannel(message, slackId string) (err error) {
 	return whydah.PostAuth(os.Getenv("entraos_api_uri")+"/slack/api/message", slackMessage{
 		SlackId: slackId,
-		Message: message,
+		Message: fmt.Sprintf("%s[%s%s-%s]%s", c.appIcon, c.envIcon, c.env, c.service, message),
 		Pinned:  false,
 	}, nil)
 }
 
+func (c client) Send(message string) (err error) {
+	return c.sendChannel(message, os.Getenv("slack_channel"))
+}
+
 func Send(message string) (err error) {
-	return SendChannel(message, os.Getenv("slack_channel"))
+	return Client.Send(message)
+}
+
+func (c client) Sendf(format string, a ...interface{}) (err error) {
+	return c.sendChannel(fmt.Sprintf(format, a...), os.Getenv("slack_channel"))
 }
 
 func Sendf(format string, a ...interface{}) (err error) {
-	return SendChannel(fmt.Sprintf(format, a...), os.Getenv("slack_channel"))
+	return Client.Sendf(format, a...)
 }

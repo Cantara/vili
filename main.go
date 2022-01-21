@@ -83,7 +83,8 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	slack.Sendf(":safety_pin: :heart: Vili starting on host: %s", hostname)
+	slack.Client = slack.NewClient(os.Getenv("appIcon"), os.Getenv("envIcon"), os.Getenv("env"), os.Getenv("identifier"))
+	slack.Sendf(" :heart: Vili starting on host: %s", hostname)
 
 	wd, err := os.Getwd()
 	if err != nil {
@@ -132,7 +133,7 @@ func main() {
 		log.Fatal(err)
 	}
 	defer serv.Kill()
-	go slack.Sendf(":safety_pin: :white_check_mark: Vili startet initial services on host: %s, with running version %s.", hostname, serv.GetRunningVersion())
+	go slack.Sendf(" :white_check_mark: Vili startet initial services on host: %s, with running version %s.", hostname, serv.GetRunningVersion())
 
 	go func() {
 		for {
@@ -187,7 +188,7 @@ func main() {
 					continue
 				}
 				time.Sleep(time.Second * 2) //Sleep an arbitrary amout of time so the file is done writing before we try to execute it
-				go slack.Sendf(":safety_pin: :mailbox_with_mail: :clock12: New version found, downloaded and deployed, running version is: %s, starting to test version %s.", serv.GetRunningVersion(), ev.Name)
+				go slack.Sendf(" :mailbox_with_mail: :clock12: New version found, downloaded and deployed, running version is: %s, starting to test version %s.", serv.GetRunningVersion(), ev.Name)
 				serv.NewTesting(ev.Name)
 			case err := <-watcher.Error:
 				log.Println("error:", err)

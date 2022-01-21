@@ -301,9 +301,9 @@ func (s *Server) CheckReliability(hostname string) {
 		}
 		s.testing.isDying = true
 		s.testing.mutex.Unlock()
-		go slack.Sendf(":safety_pin: :hourglass: Vili started switching to new version host: %s, new version %s.", hostname, s.GetRunningVersion())
+		go slack.Sendf(" :hourglass: Vili started switching to new version host: %s, new version %s.", hostname, s.GetRunningVersion())
 		s.Deploy()
-		go slack.Sendf(":safety_pin: :+1:  Vili switch to new version complete on host: %s, version %s.", hostname, s.GetRunningVersion())
+		go slack.Sendf(" :+1:  Vili switch to new version complete on host: %s, version %s.", hostname, s.GetRunningVersion())
 	}
 }
 
