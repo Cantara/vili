@@ -34,11 +34,14 @@ func NewClient(appIcon, envIcon, env, service string) client {
 }
 
 func (c client) sendChannel(message, slackId string) (err error) {
-	return whydah.PostAuth(os.Getenv("entraos_api_uri")+"/slack/api/message", slackMessage{
+	message = fmt.Sprintf("%s[%s%s-%s]%s", c.appIcon, c.envIcon, c.env, c.service, message)
+	err = whydah.PostAuth(os.Getenv("entraos_api_uri")+"/slack/api/message", slackMessage{
 		SlackId: slackId,
-		Message: fmt.Sprintf("%s[%s%s-%s]%s", c.appIcon, c.envIcon, c.env, c.service, message),
+		Message: message,
 		Pinned:  false,
 	}, nil)
+	log.AddError(err).Debug("Sent slack message", message)
+	return
 }
 
 func (c client) Send(message string) (err error) {
