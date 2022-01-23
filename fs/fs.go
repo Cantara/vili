@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"io/ioutil"
 	"os"
@@ -42,8 +43,33 @@ func CreateNewServerStructure(server string) (newFolder string, err error) { // 
 	if err != nil {
 		return
 	}
-	err = os.Rename(server, fmt.Sprintf("%s/%s", newFolder, GetFileFromPath(server)))
+	err = copyFile(server, fmt.Sprintf("%s/%s", newFolder, GetFileFromPath(server))) // os.Rename
 	return
+}
+
+func copyFile(src, dst string) error {
+	sourceFileStat, err := os.Stat(src)
+	if err != nil {
+		return err
+	}
+
+	if !sourceFileStat.Mode().IsRegular() {
+		return fmt.Errorf("%s is not a regular file", src)
+	}
+
+	source, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer source.Close()
+
+	destination, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer destination.Close()
+	_, err = io.Copy(destination, source)
+	return err
 }
 
 func CreateNewServerInstanceStructure(server string, t typelib.ServerType, port string) (newInstancePath string, err error) { // This could do with some error handling instead of just panic
