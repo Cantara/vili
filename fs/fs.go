@@ -105,6 +105,7 @@ func CreateNewServerInstanceStructure(server string, t typelib.ServerType, port 
 		return
 	}
 	err = copyPropertyFile(newInstancePath, port, t)
+	copyAuthorizationFile(newInstancePath)
 	return
 }
 
@@ -219,6 +220,27 @@ func copyPropertyFile(instance, port string, t typelib.ServerType) (err error) {
 	if !overritenPort {
 		fileOut.WriteString(fmt.Sprintf("%s=%s\n", os.Getenv("port_identifier"), port))
 	}
+	return
+}
+
+func copyAuthorizationFile(instance string) (err error) {
+	propertiesFileName := os.Getenv("properties_file_name")
+	propertiesFileName = "authorization.properties"
+	if propertiesFileName == "" {
+		return
+	}
+	fileIn, err := os.Open(fmt.Sprintf("%s/%s", getBaseFromInstance(instance), propertiesFileName))
+	if err != nil {
+		return
+	}
+	defer fileIn.Close()
+	fileOut, err := os.Create(fmt.Sprintf("%s/%s", instance, propertiesFileName))
+	if err != nil {
+		return
+	}
+	defer fileOut.Close()
+
+	_, err = io.Copy(fileOut, fileIn)
 	return
 }
 
