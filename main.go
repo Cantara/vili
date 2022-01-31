@@ -130,7 +130,7 @@ func main() {
 	verifyChan := make(chan endpointToVerify, 10) // Arbitrary large number that hopefully will not block
 	serv, err := server.Initialize(wd, zipperChan, from, to)
 	if err != nil {
-		log.Fatal(err)
+		log.AddError(err).Fatal("While inizalicing server")
 	}
 	defer serv.Kill()
 	go slack.Sendf(" :white_check_mark: Vili startet initial services on host: %s, with running version %s.", hostname, serv.GetRunningVersion())

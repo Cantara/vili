@@ -76,9 +76,9 @@ func Initialize(workingDir string, of chan<- string, portrangeFrom, portrangeTo 
 	log.Debug(firstTestServerPath)
 	if firstServerPath != firstTestServerPath {
 		err = s.startNewServer(firstTestServerPath, typelib.TESTING)
-	}
-	if err != nil {
-		return
+		if err != nil {
+			return
+		}
 	}
 	go s.NewServerWatcher()
 	return

@@ -76,6 +76,11 @@ func CreateNewServerInstanceStructure(server string, t typelib.ServerType, port 
 	if strings.HasSuffix(server, "/") {
 		server = server[:len(server)-1]
 	}
+	serverFile := fmt.Sprintf("%s/%s.jar", server, GetFileFromPath(server))
+	if !FileExists(serverFile) {
+		err = fmt.Errorf("Server file does not excist in server folder, thus unable to create now instance structure")
+		return
+	}
 	newInstancePath = fmt.Sprintf("%s/%s_%s", server, time.Now().Format("2006-01-02_15.04.05"), t) //, numRestartsOfType(server, t)+1)
 	err = os.Mkdir(newInstancePath, 0755)
 	if err != nil {
@@ -100,7 +105,7 @@ func CreateNewServerInstanceStructure(server string, t typelib.ServerType, port 
 	os.Remove(newFile)
 	os.Symlink(newInstancePath+"/logs", newFile)
 	newFilePath := fmt.Sprintf("%s/%s.jar", newInstancePath, os.Getenv("identifier"))
-	err = os.Symlink(fmt.Sprintf("%s/%s.jar", server, GetFileFromPath(server)), newFilePath)
+	err = os.Symlink(serverFile, newFilePath)
 	if err != nil {
 		return
 	}
