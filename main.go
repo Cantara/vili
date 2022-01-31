@@ -130,7 +130,7 @@ func main() {
 	verifyChan := make(chan endpointToVerify, 10) // Arbitrary large number that hopefully will not block
 	serv, err := server.Initialize(wd, zipperChan, from, to)
 	if err != nil {
-		slack.Sendf(":sos: @channel Uable to initialize vili on host %s.", hostname)
+		slack.Sendf(":sos: <!channel> Uable to initialize vili on host %s.", hostname)
 		log.AddError(err).Fatal("While inizalicing server")
 	}
 	defer serv.Kill()
@@ -163,13 +163,13 @@ func main() {
 
 	watcher, err := inotify.NewWatcher()
 	if err != nil {
-		slack.Sendf(":sos: @channel Uable to fully start vili, couldn't start watcher %s.", hostname)
+		slack.Sendf(":sos: <!channel> Uable to fully start vili, couldn't start watcher %s.", hostname)
 		log.Fatal(err)
 	}
 	defer watcher.Close()
 	err = watcher.AddWatch(wd, inotify.InCreate)
 	if err != nil {
-		slack.Sendf(":sos: @channel Uable to fully start vili, couldn't add listner to watcher %s.", hostname)
+		slack.Sendf(":sos: <!channel> Uable to fully start vili, couldn't add listner to watcher %s.", hostname)
 		log.Fatal(err)
 	}
 	defer watcher.RemoveWatch(wd)
