@@ -191,7 +191,7 @@ func getNewestServerDir(wd string, t typelib.ServerType) (name string, err error
 		if err != nil {
 			return
 		}
-		err = os.Rename(nameFile, fmt.Sprintf("%s/%s", nameDir, nameFile))
+		err = copyFile(nameFile, fmt.Sprintf("%s/%s", nameDir, nameFile))
 		if err != nil {
 			return
 		}
