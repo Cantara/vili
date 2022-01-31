@@ -88,6 +88,7 @@ func (s *Server) NewServerWatcher() {
 	for {
 		select {
 		case command := <-s.serverCommands:
+			log.Info("New command recieved")
 			switch command.command {
 			case newServer: //New servers are always testing
 				path, err := fs.CreateNewServerStructure(command.server)
