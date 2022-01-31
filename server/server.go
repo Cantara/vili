@@ -215,7 +215,7 @@ func (s *Server) startNewServer(path string, t typelib.ServerType) (err error) {
 		s.availablePorts.PushFront(oldServer.Port)
 	}
 	s.ResetTest()
-	go s.watchServerStatus(t, &serv)
+	//go s.watchServerStatus(t, &serv)
 	return
 }
 
