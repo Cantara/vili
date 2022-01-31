@@ -48,6 +48,15 @@ func CreateNewServerStructure(server string) (newFolder string, err error) { // 
 }
 
 func copyFile(src, dst string) error {
+	if src == "" || dst == "" {
+		return fmt.Errorf("Source or dest is missing for copy file")
+	}
+	if !FileExists(src) {
+		return fmt.Errorf("Source file does not exist when trying to copy file")
+	}
+	if FileExists(dst) {
+		return fmt.Errorf("Destination file does allready exist when trying to copy file")
+	}
 	sourceFileStat, err := os.Stat(src)
 	if err != nil {
 		return err
@@ -110,7 +119,10 @@ func CreateNewServerInstanceStructure(server string, t typelib.ServerType, port 
 		return
 	}
 	err = copyPropertyFile(newInstancePath, port, t)
-	copyAuthorizationFile(newInstancePath)
+	if err != nil {
+
+	}
+	err = copyAuthorizationFile(newInstancePath)
 	return
 }
 
@@ -229,23 +241,12 @@ func copyPropertyFile(instance, port string, t typelib.ServerType) (err error) {
 }
 
 func copyAuthorizationFile(instance string) (err error) {
-	propertiesFileName := os.Getenv("properties_file_name")
-	propertiesFileName = "authorization.properties"
-	if propertiesFileName == "" {
+	fileName := os.Getenv("properties_file_name")
+	fileName = "authorization.properties"
+	if fileName == "" || !FileExists(fileName) {
 		return
 	}
-	fileIn, err := os.Open(fmt.Sprintf("%s/%s", getBaseFromInstance(instance), propertiesFileName))
-	if err != nil {
-		return
-	}
-	defer fileIn.Close()
-	fileOut, err := os.Create(fmt.Sprintf("%s/%s", instance, propertiesFileName))
-	if err != nil {
-		return
-	}
-	defer fileOut.Close()
-
-	_, err = io.Copy(fileOut, fileIn)
+	err = copyFile(fmt.Sprintf("%s/%s", getBaseFromInstance(instance), fileName), fmt.Sprintf("%s/%s", instance, fileName))
 	return
 }
 
