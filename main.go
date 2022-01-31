@@ -163,11 +163,13 @@ func main() {
 
 	watcher, err := inotify.NewWatcher()
 	if err != nil {
+		slack.Sendf(":sos: @channel Uable to fully start vili, couldn't start watcher %s.", hostname)
 		log.Fatal(err)
 	}
 	defer watcher.Close()
 	err = watcher.AddWatch(wd, inotify.InCreate)
 	if err != nil {
+		slack.Sendf(":sos: @channel Uable to fully start vili, couldn't add listner to watcher %s.", hostname)
 		log.Fatal(err)
 	}
 	defer watcher.RemoveWatch(wd)
