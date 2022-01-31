@@ -128,7 +128,7 @@ func main() {
 	}()
 
 	verifyChan := make(chan endpointToVerify, 10) // Arbitrary large number that hopefully will not block
-	serv, err := server.NewServer(wd, zipperChan, from, to)
+	serv, err := server.Initialize(wd, zipperChan, from, to)
 	if err != nil {
 		log.Fatal(err)
 	}

@@ -14,11 +14,26 @@ import (
 	"github.com/cantara/vili/typelib"
 )
 
+type commandType int
+
+const (
+	newServer commandType = iota
+	restartServer
+	deployServer
+)
+
+type commandData struct {
+	server     string
+	command    commandType
+	serverType typelib.ServerType
+}
+
 type Server struct {
 	running        servletHandler
 	testing        servletHandler
 	availablePorts *list.List
 	oldFolders     chan<- string
+	serverCommands chan commandData
 	dir            string
 }
 
@@ -31,7 +46,7 @@ type servletHandler struct {
 	dir        string
 }
 
-func NewServer(workingDir string, of chan<- string, portrangeFrom, portrangeTo int) (s Server, err error) {
+func Initialize(workingDir string, of chan<- string, portrangeFrom, portrangeTo int) (s Server, err error) {
 	s = Server{
 		running: servletHandler{
 			serverType: typelib.RUNNING,
@@ -39,8 +54,9 @@ func NewServer(workingDir string, of chan<- string, portrangeFrom, portrangeTo i
 		testing: servletHandler{
 			serverType: typelib.TESTING,
 		},
-		oldFolders: of,
-		dir:        workingDir,
+		oldFolders:     of,
+		serverCommands: make(chan commandData, 5),
+		dir:            workingDir,
 	}
 	s.setAvailablePorts(portrangeFrom, portrangeTo)
 	firstServerPath, err := fs.GetFirstServerDir(s.dir, typelib.RUNNING)
@@ -61,7 +77,39 @@ func NewServer(workingDir string, of chan<- string, portrangeFrom, portrangeTo i
 	if firstServerPath != firstTestServerPath {
 		err = s.newServer(firstTestServerPath, typelib.TESTING)
 	}
+	if err != nil {
+		return
+	}
+	go s.NewServerWatcher()
 	return
+}
+
+func (s *Server) NewServerWatcher() {
+	for {
+		select {
+		case command := <-s.serverCommands:
+			switch command.command {
+			case newServer:
+				s.newTesting(command.server)
+			case restartServer:
+				s.restart(command.serverType)
+			case deployServer:
+				s.deploy()
+			}
+		}
+	}
+}
+
+func (s *Server) NewTesting(server string) {
+	s.serverCommands <- commandData{command: newServer, server: server}
+}
+
+func (s *Server) Deploy() {
+	s.serverCommands <- commandData{command: deployServer}
+}
+
+func (s *Server) Restart(t typelib.ServerType) {
+	s.serverCommands <- commandData{command: restartServer, serverType: t}
 }
 
 func (s Server) reliabilityScore() float64 {
@@ -212,7 +260,7 @@ func (s *Server) setAvailablePorts(from, to int) {
 	}
 }
 
-func (s *Server) Deploy() {
+func (s *Server) deploy() {
 	log.Println("DEPLOYING NEW RUNNING SERVER")
 	s.testing.mutex.Lock()
 	if s.testing.servlet == nil {
@@ -248,7 +296,7 @@ func (s Server) IsRunning(t typelib.ServerType) bool {
 	return false
 }
 
-func (s *Server) Restart(t typelib.ServerType) (err error) {
+func (s *Server) restart(t typelib.ServerType) (err error) {
 	log.Println("RESTARTING ", t)
 	switch t {
 	case typelib.RUNNING:
@@ -275,7 +323,7 @@ func (s *Server) Restart(t typelib.ServerType) (err error) {
 	return
 }
 
-func (s *Server) NewTesting(serv string) (err error) {
+func (s *Server) newTesting(serv string) (err error) {
 	path, err := fs.CreateNewServerStructure(serv)
 	if err != nil {
 		return
