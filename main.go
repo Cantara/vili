@@ -83,7 +83,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	slack.Client = slack.NewClient(os.Getenv("appIcon"), os.Getenv("envIcon"), os.Getenv("env"), os.Getenv("identifier"))
+	slack.Client = slack.NewClient(os.Getenv("app_icon"), os.Getenv("env_icon"), os.Getenv("env"), os.Getenv("identifier"))
 	slack.Sendf(" :heart: Vili starting on host: %s", hostname)
 
 	wd, err := os.Getwd()
