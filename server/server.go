@@ -2,6 +2,7 @@ package server
 
 import (
 	"container/list"
+	"context"
 	"strconv"
 	"strings"
 	"sync"
@@ -47,7 +48,7 @@ type servletHandler struct {
 	dir        string
 }
 
-func Initialize(workingDir string, of chan<- string, portrangeFrom, portrangeTo int) (s Server, err error) {
+func Initialize(workingDir string, of chan<- string, portrangeFrom, portrangeTo int) (s Server, cancel func(), err error) {
 	s = Server{
 		running: servletHandler{
 			serverType: typelib.RUNNING,
@@ -60,39 +61,48 @@ func Initialize(workingDir string, of chan<- string, portrangeFrom, portrangeTo 
 		dir:            workingDir,
 	}
 	s.setAvailablePorts(portrangeFrom, portrangeTo)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	go s.newServerWatcher(ctx)
+	return
+}
+
+func (s *Server) StartExcistingRunning() (err error) {
 	firstServerPath, err := fs.GetFirstServerDir(s.dir, typelib.RUNNING)
 	if err != nil {
 		return
 	}
 	log.Debug(firstServerPath)
-	err = s.startService(firstServerPath, typelib.RUNNING)
+	//err = s.startService(firstServerPath, typelib.RUNNING)
 	if err != nil {
 		return
 	}
+	return
+}
 
+func (s *Server) StartExcistingTesting() (err error) {
 	firstTestServerPath, err := fs.GetFirstServerDir(s.dir, typelib.TESTING)
 	if err != nil {
 		return
 	}
 	log.Debug(firstTestServerPath)
-	if firstServerPath != firstTestServerPath {
-		err = s.startService(firstTestServerPath, typelib.TESTING)
+	if s.running.dir != firstTestServerPath {
+		//err = s.startService(firstTestServerPath, typelib.TESTING)
 		if err != nil {
 			return
 		}
 	}
-	go s.NewServerWatcher()
 	return
 }
 
-func (s *Server) NewServerWatcher() {
+func (s *Server) newServerWatcher(ctx context.Context) {
 	for {
 		select {
 		case command := <-s.serverCommands:
 			log.Info("New command recieved")
 			switch command.command {
 			case newServer: //New servers are always testing
-				path, err := fs.CreateNewServerStructure(command.server)
+				_, err := fs.CreateNewServerStructure(command.server)
 				if err != nil {
 					log.AddError(err).Error("Creatubg new server structure")
 					continue
@@ -104,7 +114,7 @@ func (s *Server) NewServerWatcher() {
 				if oldFolder != "" {
 					s.oldFolders <- oldFolder
 				}
-				err = s.startService(path, typelib.TESTING)
+				//err = s.startService(path, typelib.TESTING)
 			case newService:
 				command.server = strings.TrimRight(command.server, "/")
 				port := s.getAvailablePort()
@@ -157,7 +167,7 @@ func (s *Server) NewServerWatcher() {
 					s.running.isDying = true
 					s.running.mutex.Unlock()
 
-					err = s.startService(s.running.dir, command.serverType)
+					//err = s.startService(s.running.dir, command.serverType)
 				case typelib.TESTING:
 					s.testing.mutex.Lock()
 					if s.testing.isDying || s.testing.servlet == nil {
@@ -167,7 +177,7 @@ func (s *Server) NewServerWatcher() {
 					s.testing.isDying = true
 					s.testing.mutex.Unlock()
 
-					err = s.startService(s.testing.dir, command.serverType)
+					//err = s.startService(s.testing.dir, command.serverType)
 				}
 				if err != nil {
 					log.AddError(err).Error("Restarting server ", command.serverType)
@@ -180,19 +190,21 @@ func (s *Server) NewServerWatcher() {
 					s.testing.mutex.Unlock()
 					return
 				}
-				server := s.testing.dir
+				//server := s.testing.dir
 				s.testing.servlet.Kill()
 				s.availablePorts.PushFront(s.testing.servlet.Port)
 				s.testing.servlet = nil
 				s.testing.mutex.Unlock()
 
 				oldFolder := s.running.dir
-				err := s.startService(server, typelib.RUNNING)
+				/*err := s.startService(server, typelib.RUNNING)
 				if err != nil {
 					log.AddError(err).Error("New server deployment")
-				}
+				}*/
 				s.oldFolders <- oldFolder
 			}
+		case <-ctx.Done():
+			return
 		}
 	}
 }
@@ -209,9 +221,8 @@ func (s *Server) Restart(t typelib.ServerType) {
 	//s.serverCommands <- commandData{command: restartServer, serverType: t}
 }
 
-func (s *Server) startService(path string, t typelib.ServerType) (err error) {
+func (s *Server) startService(path string, t typelib.ServerType) {
 	s.serverCommands <- commandData{command: newService, server: path, serverType: t}
-	return nil
 }
 
 func (s Server) reliabilityScore() float64 {
