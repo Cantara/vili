@@ -18,6 +18,7 @@ type commandType int
 
 const (
 	newServer commandType = iota
+	newService
 	restartServer
 	deployServer
 )
@@ -64,7 +65,7 @@ func Initialize(workingDir string, of chan<- string, portrangeFrom, portrangeTo 
 		return
 	}
 	log.Debug(firstServerPath)
-	err = s.startNewServer(firstServerPath, typelib.RUNNING)
+	err = s.startService(firstServerPath, typelib.RUNNING)
 	if err != nil {
 		return
 	}
@@ -75,7 +76,7 @@ func Initialize(workingDir string, of chan<- string, portrangeFrom, portrangeTo 
 	}
 	log.Debug(firstTestServerPath)
 	if firstServerPath != firstTestServerPath {
-		err = s.startNewServer(firstTestServerPath, typelib.TESTING)
+		err = s.startService(firstTestServerPath, typelib.TESTING)
 		if err != nil {
 			return
 		}
@@ -100,10 +101,49 @@ func (s *Server) NewServerWatcher() {
 				if s.testing.servlet != nil {
 					oldFolder = s.testing.dir
 				}
-				err = s.startNewServer(path, typelib.TESTING)
 				if oldFolder != "" {
 					s.oldFolders <- oldFolder
 				}
+				err = s.startService(path, typelib.TESTING)
+			case newService:
+				command.server = strings.TrimRight(command.server, "/")
+				port := s.getAvailablePort()
+				newPath, err := fs.CreateNewServerInstanceStructure(command.server, command.serverType, port)
+				if err != nil {
+					s.availablePorts.PushFront(port)
+					continue
+				}
+
+				serv, err := servlet.NewServlet(newPath, port)
+				if err != nil {
+					log.AddError(err).Warning("While creating new server")
+					s.availablePorts.PushFront(port)
+					continue
+				}
+
+				var oldServer *servlet.Servlet
+				switch command.serverType {
+				case typelib.RUNNING:
+					s.running.mutex.Lock()
+					oldServer, s.running.servlet = s.running.servlet, &serv
+					s.running.dir = command.server
+					s.running.isDying = false
+					s.running.mutex.Unlock()
+				case typelib.TESTING:
+					s.testing.mutex.Lock()
+					oldServer, s.testing.servlet = s.testing.servlet, &serv
+					s.testing.dir = command.server
+					s.testing.isDying = false
+					s.testing.mutex.Unlock()
+				}
+
+				err = fs.SymlinkFolder(command.server, command.serverType)
+				if oldServer != nil {
+					oldServer.Kill()
+					s.availablePorts.PushFront(oldServer.Port)
+				}
+				s.ResetTest()
+				//go s.watchServerStatus(t, &serv)
 			case restartServer:
 				log.Info("RESTARTING ", command.serverType)
 				var err error
@@ -117,7 +157,7 @@ func (s *Server) NewServerWatcher() {
 					s.running.isDying = true
 					s.running.mutex.Unlock()
 
-					err = s.startNewServer(s.running.dir, command.serverType)
+					err = s.startService(s.running.dir, command.serverType)
 				case typelib.TESTING:
 					s.testing.mutex.Lock()
 					if s.testing.isDying || s.testing.servlet == nil {
@@ -127,7 +167,7 @@ func (s *Server) NewServerWatcher() {
 					s.testing.isDying = true
 					s.testing.mutex.Unlock()
 
-					err = s.startNewServer(s.testing.dir, command.serverType)
+					err = s.startService(s.testing.dir, command.serverType)
 				}
 				if err != nil {
 					log.AddError(err).Error("Restarting server ", command.serverType)
@@ -147,7 +187,7 @@ func (s *Server) NewServerWatcher() {
 				s.testing.mutex.Unlock()
 
 				oldFolder := s.running.dir
-				err := s.startNewServer(server, typelib.RUNNING)
+				err := s.startService(server, typelib.RUNNING)
 				if err != nil {
 					log.AddError(err).Error("New server deployment")
 				}
@@ -169,54 +209,16 @@ func (s *Server) Restart(t typelib.ServerType) {
 	//s.serverCommands <- commandData{command: restartServer, serverType: t}
 }
 
+func (s *Server) startService(path string, t typelib.ServerType) (err error) {
+	s.serverCommands <- commandData{command: newService, server: path, serverType: t}
+	return nil
+}
+
 func (s Server) reliabilityScore() float64 {
 	if s.TestingDuration() < time.Minute*1 {
 		return -1
 	}
 	return s.testing.servlet.ReliabilityScore() - s.running.servlet.ReliabilityScore()
-}
-
-func (s *Server) startNewServer(path string, t typelib.ServerType) (err error) {
-	path = strings.TrimRight(path, "/")
-	port := s.getAvailablePort()
-	newPath, err := fs.CreateNewServerInstanceStructure(path, t, port)
-	if err != nil {
-		s.availablePorts.PushFront(port)
-		return
-	}
-
-	serv, err := servlet.NewServlet(newPath, port)
-	//s := startNewServer(newPath, port)
-	if err != nil {
-		log.AddError(err).Warning("While creating new server")
-		s.availablePorts.PushFront(port)
-		return
-	}
-
-	var oldServer *servlet.Servlet
-	switch t {
-	case typelib.RUNNING:
-		s.running.mutex.Lock()
-		oldServer, s.running.servlet = s.running.servlet, &serv
-		s.running.dir = path
-		s.running.isDying = false
-		s.running.mutex.Unlock()
-	case typelib.TESTING:
-		s.testing.mutex.Lock()
-		oldServer, s.testing.servlet = s.testing.servlet, &serv
-		s.testing.dir = path
-		s.testing.isDying = false
-		s.testing.mutex.Unlock()
-	}
-
-	err = fs.SymlinkFolder(path, t)
-	if oldServer != nil {
-		oldServer.Kill()
-		s.availablePorts.PushFront(oldServer.Port)
-	}
-	s.ResetTest()
-	//go s.watchServerStatus(t, &serv)
-	return
 }
 
 func (s *Server) watchServerStatus(t typelib.ServerType, serv *servlet.Servlet) {
