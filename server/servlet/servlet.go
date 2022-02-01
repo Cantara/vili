@@ -108,7 +108,7 @@ func NewServlet(serverFolder, port string) (servlet Servlet, err error) {
 			stdErr.Close()
 		},
 	}
-	go parseLogServer(servlet, ctx)
+	go servlet.parseLogServer(ctx)
 	return
 }
 
@@ -116,7 +116,7 @@ type logData struct {
 	Level string `json:"level"`
 }
 
-func parseLogServer(servlet Servlet, ctx context.Context) {
+func (servlet *Servlet) parseLogServer(ctx context.Context) {
 	lineChan, err := tail.File(fmt.Sprintf("%s/logs/json/%s.log", servlet.cmd.Dir, os.Getenv("identifier")), ctx)
 	if err != nil {
 		log.AddError(err).Error("While trying to tail log file") //TODO look into what can be done here
