@@ -166,7 +166,7 @@ func (s *Server) Deploy() {
 }
 
 func (s *Server) Restart(t typelib.ServerType) {
-	s.serverCommands <- commandData{command: restartServer, serverType: t}
+	//s.serverCommands <- commandData{command: restartServer, serverType: t}
 }
 
 func (s Server) reliabilityScore() float64 {
