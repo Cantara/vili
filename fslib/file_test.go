@@ -8,7 +8,7 @@ import (
 
 func TestDir(t *testing.T) {
 	d1Path := "/"
-	d1, err := Dir(d1Path, nil)
+	d1, err := DirFile(d1Path, nil)
 	if err != nil {
 		t.Error(err)
 		return
@@ -84,7 +84,7 @@ func TestParentDir(t *testing.T) {
 		return
 	}
 	d1Path := dir + "/test"
-	d1, err := Dir(d1Path, nil)
+	d1, err := DirFile(d1Path, nil)
 	if err != nil {
 		t.Error(err)
 		return

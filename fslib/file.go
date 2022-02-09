@@ -30,6 +30,7 @@ var (
 	FileNotOpened = errors.New("file not opened")
 	FileOpened    = errors.New("file opened")
 	FileNotDir    = errors.New("file is not dir")
+	FileIsDir     = errors.New("file is dir")
 )
 
 func File(path string, dir *file) (f file, err error) {
@@ -43,7 +44,7 @@ func File(path string, dir *file) (f file, err error) {
 	return
 }
 
-func Dir(path string, dir *file) (f file, err error) {
+func DirFile(path string, dir *file) (f file, err error) {
 	f, err = File(path, dir)
 	if err != nil {
 		return
@@ -62,7 +63,7 @@ func FileInMem(path string, dir *file) (f file, err error) {
 }
 
 func DirInMem(path string, dir *file) (f file, err error) {
-	f, err = Dir(path, dir)
+	f, err = DirFile(path, dir)
 	if err != nil {
 		return
 	}
@@ -80,6 +81,10 @@ func FileFromFileInfo(path string, fileInfo stdFS.FileInfo, dir *file) (f file, 
 	f.size = fileInfo.Size()
 	f.modTime = fileInfo.ModTime()
 	return
+}
+
+func (dir *file) symlinkFile(f *file) {
+	dir.dirData = append(dir.dirData, f)
 }
 
 func (f *file) Open() (err error) {
@@ -189,7 +194,7 @@ func (f *file) NewDir(path string) (fout *file, err error) {
 		fout = &ft
 		f.dirData = append(f.dirData, fout)
 	} else {
-		ft, err = Dir(path, f)
+		ft, err = DirFile(path, f)
 		if err != nil {
 			return
 		}
@@ -291,6 +296,29 @@ func (f file) ReadDir() ([]stdFS.DirEntry, error) {
 	return out, nil
 }
 
+func (f file) Readdir() ([]stdFS.FileInfo, error) {
+	if f.opened {
+		return nil, FileOpened
+	}
+	if !f.inMem {
+		err := f.Open()
+		if err != nil {
+			return nil, err
+		}
+	}
+	out := make([]stdFS.FileInfo, len(f.dirData))
+	for i := range f.dirData {
+		out[i] = f.dirData[i]
+	}
+	if !f.inMem {
+		err := f.Close()
+		if err != nil {
+			return nil, err
+		}
+	}
+	return out, nil
+}
+
 func (f *file) Close() (err error) {
 	if f.inMem { // Could delete data before returning, depending on intended behavior
 		f.opened = false
@@ -313,6 +341,10 @@ func (f file) Name() string {
 func (f file) Dir() (dir string) {
 	dir, _ = filepath.Split(f.path)
 	return
+}
+
+func (f file) Path() string {
+	return f.path
 }
 
 func (f file) Size() int64 {
@@ -365,6 +397,30 @@ func (f *file) Write(b []byte) (n int, err error) {
 		return n, nil
 	}
 	return f.osFile.Write(b)
+}
+
+func (f *file) WriteString(s string) (n int, err error) {
+	return f.Write([]byte(s))
+}
+
+func (f *file) Symlink(dst string) (err error) {
+	if f.inMem {
+		return
+	}
+	err = os.Symlink(f.path, dst)
+	return
+}
+
+func (f file) Readlink() (out string, err error) {
+	if f.IsDir() {
+		err = FileIsDir
+		return
+	}
+	if f.inMem {
+		out = f.Path()
+		return
+	}
+	return os.Readlink(f.Path())
 }
 
 func (f *file) find(path string) (out *file, err error) { //Expects a clean path TODO Add tests

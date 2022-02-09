@@ -2,16 +2,14 @@ package fs
 
 import (
 	"bufio"
-	"errors"
 	"fmt"
-	"io"
 	"io/fs"
-	"io/ioutil"
 	"os"
 	"strings"
 	"time"
 
 	log "github.com/cantara/bragi"
+	"github.com/cantara/vili/fslib"
 	"github.com/cantara/vili/typelib"
 )
 
@@ -22,139 +20,112 @@ func stripJar(s string) string {
 	return s[:len(s)-4]
 }
 
-func GetFileFromPath(path string) string {
-	pathParts := strings.Split(path, "/")
-	return pathParts[len(pathParts)-1]
-}
+var baseDir fslib.FS
 
-func getBaseFromInstance(instance string) string {
-	path := strings.Split(instance, "/")
-	return strings.Join(path[:len(path)-2], "/") //TODO handle if server is not long enugh aka correct
-}
-
-func GetBaseFromServer(server string) string {
-	path := strings.Split(server, "/")
-	return strings.Join(path[:len(path)-1], "/") //TODO handle if server is not long enugh aka correct
-}
-
-func CreateNewServerStructure(server string) (newFolder string, err error) { // This could do with some error handling instead of just panic
-	newFolder = stripJar(server)
-	err = os.Mkdir(newFolder, 0755)
+func CreateNewServerStructure(server string) (newFolder fslib.FS, err error) {
+	newFolder, err = baseDir.Mkdir(stripJar(server), 0755)
 	if err != nil {
 		return
 	}
-	err = copyFile(server, fmt.Sprintf("%s/%s", newFolder, GetFileFromPath(server))) // os.Rename
+	serverFile, err := baseDir.Find(server)
+	if err != nil {
+		return
+	}
+
+	err = baseDir.Copy(serverFile, fmt.Sprintf("%s/%s", newFolder.Path(), serverFile.Name()))
+	return
+}
+func CreateNewServerInstanceStructure(serverDir fslib.FS, server string, t typelib.ServerType, port string) (newInstancePath string, err error) {
+	outerServerFile, err := fslib.File(server, nil)
+	if err != nil {
+		return
+	}
+	serverFile, err := serverDir.Find(outerServerFile.Name()) //Not totaly sure what to do with server here / what format i want server on etc
+	if err != nil {
+		err = fmt.Errorf("Server file does not excist in server folder, thus unable to create now instance structure: err(%v)", err)
+		return
+	}
+	newInstancePath = fmt.Sprintf("%s_%s", time.Now().Format("2006-01-02_15.04.05"), t) //, numRestartsOfType(server, t)+1)
+	instanceDir, err := serverDir.Mkdir(newInstancePath, 0755)
+	if err != nil {
+		return
+	}
+
+	//Symlink support needed in FSlib
+	//newFile := fmt.Sprintf("%s/current", server)
+	//os.Remove(newFile)
+	//os.Symlink(newInstancePath, newFile)
+	serverDir.Remove("current")
+	serverDir.Symlink(*instanceDir.BaseDir(), "current")
+
+	logs, err := instanceDir.Mkdir("logs", 0755) //There is something here i don't like
+	if err != nil {
+		return
+	}
+	_, err = logs.Mkdir("json", 0755)
+	if err != nil {
+		return
+	}
+
+	//Symlink support needed in FSlib
+	//newFile = fmt.Sprintf("%s/logs", server)
+	//os.Remove(newFile)
+	serverDir.Remove("logs")
+	serverDir.Symlink(*logs.BaseDir(), "logs")
+
+	//TODO move to another function i think
+	//base := GetBaseFromServer(server)
+	baseLogs := fmt.Sprintf("logs_%s-%s", os.Getenv("identifier"), t)
+	//os.Remove(newFile)
+	//os.Symlink(newInstancePath+"/logs", newFile)
+	baseDir.Remove(baseLogs)
+	baseDir.Symlink(*logs.BaseDir(), baseLogs)
+	instanceExecPath := fmt.Sprintf("%s/%s.jar", instanceDir.Path(), os.Getenv("identifier"))
+	err = serverDir.Symlink(*serverFile, instanceExecPath)
+	if err != nil {
+		return
+	}
+	err = copyPropertyFile(&instanceDir, port, t)
+	if err != nil {
+		return
+	}
+	authName := "authorization.properties"
+	baseDir.FindAndCopy(authName, instanceDir.Path()+"/"+authName) //Could change copy function to add filename if none is given
 	return
 }
 
-func copyFile(src, dst string) error {
-	if src == "" || dst == "" {
-		return fmt.Errorf("Source or dest is missing for copy file")
-	}
-	if !FileExists(src) {
-		return fmt.Errorf("Source file does not exist when trying to copy file")
-	}
-	if FileExists(dst) {
-		return fmt.Errorf("Destination file does allready exist when trying to copy file")
-	}
-	sourceFileStat, err := os.Stat(src)
-	if err != nil {
-		return err
-	}
-
-	if !sourceFileStat.Mode().IsRegular() {
-		return fmt.Errorf("%s is not a regular file", src)
-	}
-
-	source, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	defer source.Close()
-
-	destination, err := os.Create(dst)
-	if err != nil {
-		return err
-	}
-	defer destination.Close()
-	_, err = io.Copy(destination, source)
-	return err
-}
-
-func CreateNewServerInstanceStructure(server string, t typelib.ServerType, port string) (newInstancePath string, err error) { // This could do with some error handling instead of just panic
-	if strings.HasSuffix(server, "/") {
-		server = server[:len(server)-1]
-	}
-	serverFile := fmt.Sprintf("%s/%s.jar", server, GetFileFromPath(server))
-	if !FileExists(serverFile) {
-		err = fmt.Errorf("Server file does not excist in server folder, thus unable to create now instance structure")
-		return
-	}
-	newInstancePath = fmt.Sprintf("%s/%s_%s", server, time.Now().Format("2006-01-02_15.04.05"), t) //, numRestartsOfType(server, t)+1)
-	err = os.Mkdir(newInstancePath, 0755)
-	if err != nil {
-		return
-	}
-	newFile := fmt.Sprintf("%s/current", server)
-	os.Remove(newFile)
-	os.Symlink(newInstancePath, newFile)
-	err = os.Mkdir(newInstancePath+"/logs", 0755)
-	if err != nil {
-		return
-	}
-	err = os.Mkdir(newInstancePath+"/logs/json", 0755)
-	if err != nil {
-		return
-	}
-	newFile = fmt.Sprintf("%s/logs", server)
-	os.Remove(newFile)
-	os.Symlink(newInstancePath+"/logs", newFile)
-	base := GetBaseFromServer(server)
-	newFile = fmt.Sprintf("%s/logs_%s-%s", base, os.Getenv("identifier"), t)
-	os.Remove(newFile)
-	os.Symlink(newInstancePath+"/logs", newFile)
-	newFilePath := fmt.Sprintf("%s/%s.jar", newInstancePath, os.Getenv("identifier"))
-	err = os.Symlink(serverFile, newFilePath)
-	if err != nil {
-		return
-	}
-	err = copyPropertyFile(newInstancePath, port, t)
-	if err != nil {
-
-	}
-	err = copyAuthorizationFile(newInstancePath)
-	return
-}
-
+/*
 func SymlinkFolder(server string, t typelib.ServerType) error {
 	newFile := fmt.Sprintf("%s-%s", os.Getenv("identifier"), t)
 	os.Remove(newFile)
 	return os.Symlink(server, newFile)
 }
+*/
 
-func GetFirstServerDir(wd string, t typelib.ServerType) (name string, err error) {
-	fileName := fmt.Sprintf("%s/%s-%s", wd, os.Getenv("identifier"), t)
-	if FileExists(fileName) { // Might change this to do it manualy and actually check if it is a dir and so on.
-		name, err = os.Readlink(fileName)
+func GetFirstServerDir(t typelib.ServerType) (serverDir fslib.FS, err error) {
+	fileName := fmt.Sprintf("%s-%s", os.Getenv("identifier"), t)
+	if baseDir.Exists(fileName) { // Might change this to do it manualy and actually check if it is a dir and so on.
+		name, err := baseDir.Readlink(fileName)
 		if err == nil {
-			return
+			serverDir, err = baseDir.Cd(name)
+			return serverDir, err
 		}
 		log.Println(err)
 	}
-	name, err = getNewestServerDir(wd, t)
+	name, err := getNewestServerDir(t)
 	if err != nil {
 		return
 	}
-	if name == "" {
+	/*if name == "" {
 		err = fmt.Errorf("No server of type %s found.", t)
 		return
-	}
-	name = fmt.Sprintf("%s/%s", wd, name)
+	}*/
+	serverDir, err = baseDir.Cd(name.Path())
 	return
 }
 
-func getNewestServerDir(wd string, t typelib.ServerType) (name string, err error) {
-	files, err := ioutil.ReadDir(wd)
+func getNewestServerDir(t typelib.ServerType) (serverDir fslib.FS, err error) {
+	files, err := baseDir.Readdir(".")
 	if err != nil {
 		return
 	}
@@ -186,35 +157,24 @@ func getNewestServerDir(wd string, t typelib.ServerType) (name string, err error
 		nameFile = file.Name()
 	}
 	if (nameDir == "" || (t == typelib.TESTING && timeFile.After(timeDir))) && nameFile != "" {
-		nameDir = stripJar(nameFile)
-		err = os.Mkdir(nameDir, 0755)
-		if err != nil {
-			return
-		}
-		err = copyFile(nameFile, fmt.Sprintf("%s/%s", nameDir, nameFile))
-		if err != nil {
-			return
-		}
+		serverDir, err = CreateNewServerStructure(nameFile)
+	} else {
+		serverDir, err = baseDir.Cd(nameDir)
 	}
-	return nameDir, nil
+	return
 }
 
-func FileExists(path string) bool {
-	_, err := os.Stat(path)
-	return !errors.Is(err, os.ErrNotExist)
-}
-
-func copyPropertyFile(instance, port string, t typelib.ServerType) (err error) {
+func copyPropertyFile(instanceFS *fslib.FS, port string, t typelib.ServerType) (err error) {
 	propertiesFileName := os.Getenv("properties_file_name")
 	if propertiesFileName == "" {
 		return
 	}
-	fileIn, err := os.Open(fmt.Sprintf("%s/%s", getBaseFromInstance(instance), propertiesFileName))
+	fileIn, err := baseDir.Open(propertiesFileName)
 	if err != nil {
 		return
 	}
 	defer fileIn.Close()
-	fileOut, err := os.Create(fmt.Sprintf("%s/%s", instance, propertiesFileName))
+	fileOut, err := instanceFS.Create(propertiesFileName)
 	if err != nil {
 		return
 	}
@@ -240,6 +200,7 @@ func copyPropertyFile(instance, port string, t typelib.ServerType) (err error) {
 	return
 }
 
+/*
 func copyAuthorizationFile(instance string) (err error) {
 	fileName := os.Getenv("properties_file_name")
 	fileName = "authorization.properties"
@@ -249,6 +210,7 @@ func copyAuthorizationFile(instance string) (err error) {
 	err = copyFile(fmt.Sprintf("%s/%s", getBaseFromInstance(instance), fileName), fmt.Sprintf("%s/%s", instance, fileName))
 	return
 }
+*/
 
 func GetOldestFile(fsys fs.FS, dir string) string {
 	oldestPath := ""

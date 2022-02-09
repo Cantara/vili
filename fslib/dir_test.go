@@ -6,29 +6,29 @@ import (
 	"testing"
 )
 
-func validateFSBase(fsys FS, basePath string, shouldBeInMem bool, t *testing.T) {
-	if !fsys.base.IsDir() {
-		t.Errorf("Fsys base was not dir")
+func validateFSBase(d Dir, basePath string, shouldBeInMem bool, t *testing.T) {
+	if !d.base.IsDir() {
+		t.Errorf("Dir base was not dir")
 		return
 	}
-	if fsys.inMem != shouldBeInMem {
-		t.Errorf("Fsys was in mem when it shouldn't have been")
+	if d.inMem != shouldBeInMem {
+		t.Errorf("Dir was in mem when it shouldn't have been")
 		return
 	}
-	if fsys.base.path != basePath {
-		t.Errorf("Fsys base path was incorrect")
+	if d.base.path != basePath {
+		t.Errorf("Dir base path was incorrect")
 		return
 	}
 }
 
 func TestFS(t *testing.T) {
 	d1Path := "/"
-	fsys, err := NewFS(d1Path)
+	d, err := NewDir(d1Path)
 	if err != nil {
 		t.Error(err)
 		return
 	}
-	validateFSBase(fsys, d1Path, false, t)
+	validateFSBase(d, d1Path, false, t)
 }
 
 func TestFSFromWD(t *testing.T) {
@@ -37,42 +37,42 @@ func TestFSFromWD(t *testing.T) {
 		t.Error(err)
 		return
 	}
-	fsys, err := NewFSFromWD()
+	d, err := NewDirFromWD()
 	if err != nil {
 		t.Error(err)
 		return
 	}
-	validateFSBase(fsys, wd, false, t)
+	validateFSBase(d, wd, false, t)
 }
 
 func TestInMemFS(t *testing.T) {
 	d1Path := "/"
-	fsys, err := NewInMemFS(d1Path)
+	d, err := NewInMemDir(d1Path)
 	if err != nil {
 		t.Error(err)
 		return
 	}
-	validateFSBase(fsys, d1Path, true, t)
+	validateFSBase(d, d1Path, true, t)
 }
 
 func TestFSNewInMemDir(t *testing.T) {
 	d1Path := "/"
-	fsys, err := NewInMemFS(d1Path)
+	d, err := NewInMemDir(d1Path)
 	if err != nil {
 		t.Error(err)
 		return
 	}
 	d2Name := "testD2"
-	dir, err := fsys.Mkdir(d2Name, 0755)
+	dir, err := d.Mkdir(d2Name, 0755)
 	if err != nil {
 		t.Error(err)
 		return
 	}
-	if dir.path != d1Path+d2Name {
+	if dir.Path() != d1Path+d2Name {
 		t.Error("Subfoler path is not correct from mkdir")
 		return
 	}
-	if !dir.IsDir() {
+	if !dir.base.IsDir() {
 		t.Error("Mkdir did not create dir")
 		return
 	}
@@ -80,7 +80,7 @@ func TestFSNewInMemDir(t *testing.T) {
 		t.Error("InMem FS did not create InMem dir with mkdir")
 		return
 	}
-	files, err := fsys.ReadDir(".")
+	files, err := d.ReadDir(".")
 	if err != nil {
 		t.Error(err)
 		return
@@ -92,29 +92,29 @@ func TestFSNewInMemDir(t *testing.T) {
 }
 
 func TestFSNewDir(t *testing.T) {
-	fsys, err := NewFSFromWD()
+	d, err := NewDirFromWD()
 	if err != nil {
 		t.Error(err)
 		return
 	}
 	d2Name := "testD2"
-	fsys.Remove(d2Name)
-	files, err := fsys.ReadDir(".")
+	d.Remove(d2Name)
+	files, err := d.ReadDir(".")
 	if err != nil {
 		t.Error(err)
 		return
 	}
 	antFiles := len(files)
-	dir, err := fsys.Mkdir(d2Name, 0755)
+	dir, err := d.Mkdir(d2Name, 0755)
 	if err != nil {
 		t.Error(err)
 		return
 	}
-	if dir.path != fsys.base.path+"/"+d2Name {
-		t.Error("Subfoler path is not correct from mkdir", dir.path, fsys.base.path+"/"+d2Name)
+	if dir.Path() != d.base.path+"/"+d2Name {
+		t.Error("Subfoler path is not correct from mkdir", dir.Path(), d.base.path+"/"+d2Name)
 		return
 	}
-	if !dir.IsDir() {
+	if !dir.base.IsDir() {
 		t.Error("Mkdir did not create dir")
 		return
 	}
@@ -122,7 +122,7 @@ func TestFSNewDir(t *testing.T) {
 		t.Error("Not InMem FS did create InMem dir with mkdir")
 		return
 	}
-	files, err = fsys.ReadDir(".")
+	files, err = d.ReadDir(".")
 	if err != nil {
 		t.Error(err)
 		return
@@ -133,12 +133,12 @@ func TestFSNewDir(t *testing.T) {
 	}
 }
 
-func testWriteCopyAndReadFile(fsys FS, t *testing.T) {
+func testWriteCopyAndReadFile(d Dir, t *testing.T) {
 	f1Name, f2Name := "fsysF1", "fsysF2"
-	fsys.Remove(f1Name)
-	fsys.Remove(f2Name)
+	d.Remove(f1Name)
+	d.Remove(f2Name)
 
-	f1, err := fsys.Create(f1Name)
+	f1, err := d.Create(f1Name)
 	if err != nil {
 		t.Error(err)
 		return
@@ -154,12 +154,12 @@ func testWriteCopyAndReadFile(fsys FS, t *testing.T) {
 		t.Errorf("Write did not write expected length of data, %d of %d", n, len(write))
 		return
 	}
-	err = fsys.Copy(f1Name, f2Name)
+	err = d.FindAndCopy(f1Name, f2Name)
 	if err != nil {
 		t.Error(err)
 		return
 	}
-	read, err := fsys.ReadFile(f2Name)
+	read, err := d.ReadFile(f2Name)
 	if err != nil {
 		t.Error(err)
 		return
@@ -171,19 +171,19 @@ func testWriteCopyAndReadFile(fsys FS, t *testing.T) {
 }
 
 func TestFSWriteCopyAndReadFile(t *testing.T) {
-	fsys, err := NewFSFromWD()
+	d, err := NewDirFromWD()
 	if err != nil {
 		t.Error(err)
 		return
 	}
-	testWriteCopyAndReadFile(fsys, t)
+	testWriteCopyAndReadFile(d, t)
 }
 
 func TestFSInMemWriteCopyAndReadFile(t *testing.T) {
-	fsys, err := NewInMemFS("/")
+	d, err := NewInMemDir("/")
 	if err != nil {
 		t.Error(err)
 		return
 	}
-	testWriteCopyAndReadFile(fsys, t)
+	testWriteCopyAndReadFile(d, t)
 }
