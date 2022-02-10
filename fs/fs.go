@@ -20,10 +20,10 @@ func stripJar(s string) string {
 	return s[:len(s)-4]
 }
 
-var baseDir fslib.FS
+var baseDir fslib.Dir
 
-func CreateNewServerStructure(server string) (newFolder fslib.FS, err error) {
-	newFolder, err = baseDir.Mkdir(stripJar(server), 0755)
+func CreateNewServerStructure(server string) (newDir fslib.Dir, err error) {
+	newDir, err = baseDir.Mkdir(stripJar(server), 0755)
 	if err != nil {
 		return
 	}
@@ -32,10 +32,10 @@ func CreateNewServerStructure(server string) (newFolder fslib.FS, err error) {
 		return
 	}
 
-	err = baseDir.Copy(serverFile, fmt.Sprintf("%s/%s", newFolder.Path(), serverFile.Name()))
+	err = baseDir.Copy(serverFile, fmt.Sprintf("%s/%s", newDir.Path(), serverFile.Name()))
 	return
 }
-func CreateNewServerInstanceStructure(serverDir fslib.FS, server string, t typelib.ServerType, port string) (newInstancePath string, err error) {
+func CreateNewServerInstanceStructure(serverDir fslib.Dir, server string, t typelib.ServerType, port string) (instanceDir fslib.Dir, err error) {
 	outerServerFile, err := fslib.File(server, nil)
 	if err != nil {
 		return
@@ -45,13 +45,13 @@ func CreateNewServerInstanceStructure(serverDir fslib.FS, server string, t typel
 		err = fmt.Errorf("Server file does not excist in server folder, thus unable to create now instance structure: err(%v)", err)
 		return
 	}
-	newInstancePath = fmt.Sprintf("%s_%s", time.Now().Format("2006-01-02_15.04.05"), t) //, numRestartsOfType(server, t)+1)
-	instanceDir, err := serverDir.Mkdir(newInstancePath, 0755)
+	newInstancePath := fmt.Sprintf("%s_%s", time.Now().Format("2006-01-02_15.04.05"), t) //, numRestartsOfType(server, t)+1)
+	instanceDir, err = serverDir.Mkdir(newInstancePath, 0755)
 	if err != nil {
 		return
 	}
 
-	//Symlink support needed in FSlib
+	//Symlink support needed in Dirlib
 	//newFile := fmt.Sprintf("%s/current", server)
 	//os.Remove(newFile)
 	//os.Symlink(newInstancePath, newFile)
@@ -67,7 +67,7 @@ func CreateNewServerInstanceStructure(serverDir fslib.FS, server string, t typel
 		return
 	}
 
-	//Symlink support needed in FSlib
+	//Symlink support needed in Dirlib
 	//newFile = fmt.Sprintf("%s/logs", server)
 	//os.Remove(newFile)
 	serverDir.Remove("logs")
@@ -102,7 +102,7 @@ func SymlinkFolder(server string, t typelib.ServerType) error {
 }
 */
 
-func GetFirstServerDir(t typelib.ServerType) (serverDir fslib.FS, err error) {
+func GetFirstServerDir(t typelib.ServerType) (serverDir fslib.Dir, err error) {
 	fileName := fmt.Sprintf("%s-%s", os.Getenv("identifier"), t)
 	if baseDir.Exists(fileName) { // Might change this to do it manualy and actually check if it is a dir and so on.
 		name, err := baseDir.Readlink(fileName)
@@ -124,7 +124,7 @@ func GetFirstServerDir(t typelib.ServerType) (serverDir fslib.FS, err error) {
 	return
 }
 
-func getNewestServerDir(t typelib.ServerType) (serverDir fslib.FS, err error) {
+func getNewestServerDir(t typelib.ServerType) (serverDir fslib.Dir, err error) {
 	files, err := baseDir.Readdir(".")
 	if err != nil {
 		return
@@ -164,7 +164,7 @@ func getNewestServerDir(t typelib.ServerType) (serverDir fslib.FS, err error) {
 	return
 }
 
-func copyPropertyFile(instanceFS *fslib.FS, port string, t typelib.ServerType) (err error) {
+func copyPropertyFile(instanceDir *fslib.Dir, port string, t typelib.ServerType) (err error) {
 	propertiesFileName := os.Getenv("properties_file_name")
 	if propertiesFileName == "" {
 		return
@@ -174,7 +174,7 @@ func copyPropertyFile(instanceFS *fslib.FS, port string, t typelib.ServerType) (
 		return
 	}
 	defer fileIn.Close()
-	fileOut, err := instanceFS.Create(propertiesFileName)
+	fileOut, err := instanceDir.Create(propertiesFileName)
 	if err != nil {
 		return
 	}
