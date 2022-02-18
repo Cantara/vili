@@ -2,35 +2,76 @@
 
 [![Build Status](https://jenkins.entraos.io/buildStatus/icon?job=Cantara-Vili-Multipipeline%2Fmain)](https://jenkins.entraos.io/job/Cantara-Vili-Multipipeline/job/main/)[![Go Report Card](https://goreportcard.com/badge/github.com/cantara/vili)](https://goreportcard.com/report/github.com/cantara/vili)
 
-Vili atempts to add a layer of integrety to your application. It does this by managing your versions and how they get shown. By takin inn your new jar files and structuringthem vili contains everything relevant for one runtime in its own place. Vili also cleans up after itself and archives old versions as zips.
+Vili adds another layer of integrety and stability to your application. It does this by managing how new versions are deployed to users. Vili will take responsibility for running your application and forwarding traffic to it. Vili also listens to the logs of the applications it handles. This is to verify if a new version that is being tested is "stable" / "correct" enugh to be shown to users. This is a simple and allmost dropinn way of doing testing with live user data. One should allways consider that there might be some side effects if clusters are not propperly handled or you add incompatible datastructure updates in your persistent storage. Vili is also most likly noe a tool to use for major version updates.
+
+/* This is things from the old readme that i might want to add inn somehow in the new
+
+\By taking inn your new jar files and structuringthem vili contains everything relevant for one runtime in its own place. Vili also cleans up after itself and archives old versions as zips.
 By executing two versions of your application and tailing their json logs can vili read out a metric on how good your new version is and through that decide if it sould be the running version based on REAL data from your users.
 If vili decides a update is approtiate it will kill off the application that is in testing and start a new version marked running. Then vili will move traffic from the previous running application to the new one and then kill the old running application.
 Vili will also do minor things like verify that you dont break an endpoint by only serving it on the old version and 404 ing on the new version.
 
 Vili will also alway save all information needed to run any application by itself where you need it. You will therfore find that vili provides you with symlinks to the versions of you application that is running and being testet. Along with your base config file that is copied and edited for vilis needs.
 
+*/
+
 ## TL;DR
 
 Vili tests new versions of your servers with real data before showing them to your users
+
+## Table of Contents
+
+[TOC]
+
+
 
 ## Inspiration
 
 Poka-yoke (ポカヨケ, [poka joke]) is a Japanese term that means "mistake-proofing" or "inadvertent error prevention". A poka-yoke is any mechanism in a process that helps an equipment operator avoid (yokeru) mistakes (poka) and defects by preventing, correcting, or drawing attention to human errors as they occur.
 
-
 ## Dictionary
 
 * Base will refer to the directory in which vili has as its root.
-* Running will refer to the current server, the version we trust.
-* Testing will refer to the server that is tested against the Running server and potentially deployed.
+* Running will refer to the current server, the version we trust and show users.
+* Testing will refer to the server that is tested against the Running server and potentially becomes the next running.
+* Server is a version of your service
+* Servlet is an instance of a server
+* Sermantic versioning is used to talk about different kinds of uppdates that vili does support or not. However vili is not reliant on semver.
 
-## What your servers need to implement //TODO
+## Important considerations for your applications
 
-Your servers need to implement a way to not write persistent data when it is used in testing. This is distinguished by adding a header on the test request. The servers should be oblivious to the fact that it is not live, other than at the point of writing persistent data.
+Vili will run multiple versions of your software in the same space and this brings with it some complications. But nothing good coding praccises won't help with.
 
-## How to run Vili
+1. You should only use vili when doing minor or patch updates.
+2. The api should follow atleast the two first levels of restfullness or any other api standard that follows the same principles for methods. //TODO: verify what levels of the restfull standard actually talks about methigs or just change this to define that here again instead
+3. You should handle versioning of your persistent data the same as your api. This means that if there is a change in how you handle your persistent data that is not backwards compatible with other versions of your software, you need a major version change.
+4. How you handle versioning of your clustered data should be the same as your persistent data in point 3.
+5. Propper handling of sigterm within a known max amount of time. It isn't optimal if this starts to take minutes.
+6. A configurable host port
 
-1. Prepare a base folder where Vili will run and all configs and new jar files will land. 
+## Your responsibillities and Vilis responsibillities
+
+### Yours
+
+1. Familliarising yourselv with the [important considerations for your applications](##Important considerations for your applications).
+2. Running and keeping vili alive.
+3. If you kill vili hard, you also have to kill all the processes started by vili.
+4. Downloading new server files that vili should use.
+1. Cleaning up old server files that should no longer be used. Typical ways of hanlind this is keeping 4 versions as backup if you want to force an older version without rinning vili.
+2. Not delete or edit any folders or files created by vili. Except the zip arcives.
+
+### Vilis
+
+1. Copy out any new server files when they are added to the **base** dir.
+2. Create symlinks so it is easy to see what vili is doing and read rellevant logs.
+3. Archive old servers
+4. Create separations between each time a server is started so it is easy to see exactly what conditions the server ran under.
+5. Delete old archives if the **base** folder exeeds a set amout of data.
+6. Test and show new versions to your users when they are ready
+
+## How to run Vili //Note to self, nothing beyond this point is uppdated
+
+1. Prepare a **base** folder where Vili will run and all configs and new jar files will be located. 
 2. Copy the tmp.env to a file named .env and fill inn.
    * port is whatever port you want vili to respond to
    * scheme is the scheme used to contact the servers you provide
