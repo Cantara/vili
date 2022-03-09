@@ -357,7 +357,7 @@ func (s Server) IsRunning(t typelib.ServerType) bool {
 }
 
 func (s Server) HasRunning() bool {
-	return s.running != nil
+	return s.running.servlet != nil && s.running.dir != nil
 }
 
 func (s *Server) CheckReliability(hostname string) {
