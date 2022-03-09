@@ -349,3 +349,7 @@ func (d dir) PrintTree() {
 		return nil
 	})
 }
+
+func (d dir) String() string {
+	return d.Path()
+}

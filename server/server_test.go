@@ -1,39 +1,40 @@
 package server
 
 import (
-	"os"
 	"strconv"
 	"testing"
+
+	"github.com/cantara/vili/fslib"
 )
 
 func setupBase(t *testing.T) (serv Server) {
-	zipperChan := make(chan string, 1)
-	wd, err := os.Getwd()
+	zipperChan := make(chan fslib.Dir, 1)
+	wd, err := fslib.NewDirFromWD()
 	if err != nil {
 		t.Errorf("os.Getwd() got err: %v", err)
 	}
 	from, to := 8000, 8080
-	serv, cloase, err := Initialize(wd, zipperChan, from, to)
+	serv, err = Initialize(&wd, zipperChan, from, to)
 	if err != nil {
 		t.Errorf("Initialize(%s, %p, %d, %d) got err: %v", wd, zipperChan, from, to, err)
 	}
-	cloase()
+	serv.Kill()
 	return
 }
 
 func TestInitialize(t *testing.T) {
-	zipperChan := make(chan string, 1)
-	wd, err := os.Getwd()
+	zipperChan := make(chan fslib.Dir, 1)
+	wd, err := fslib.NewDirFromWD()
 	if err != nil {
 		t.Errorf("os.Getwd() got err: %v", err)
 	}
 	from, to := 8000, 8080
-	serv, cloase, err := Initialize(wd, zipperChan, from, to)
+	serv, err := Initialize(&wd, zipperChan, from, to)
 	if err != nil {
 		t.Errorf("Initialize(%s, %p, %d, %d) got err: %v", wd, zipperChan, from, to, err)
 	}
-	cloase()
-	if serv.dir != wd {
+	serv.Kill()
+	if serv.dir.Path() != wd.Path() {
 		t.Errorf("serv.dir != wd: %s != %s", serv.dir, wd)
 	}
 	numAvaiablePorts := serv.availablePorts.Len()
