@@ -290,6 +290,10 @@ func post(uri string, data interface{}, out interface{}) (err error) {
 
 func reqHandler(serv *server.Server, etv chan<- endpointToVerify) http.HandlerFunc { //TODO Remove dependencie on pointer
 	return func(w http.ResponseWriter, r *http.Request) {
+		if !serv.HasRunning() {
+			log.Println("Missing running")
+			return
+		}
 		rOld, err := requestHandler(endpoint+":"+serv.GetPort(typelib.RUNNING), r, serv, false)
 		if err != nil {
 			log.AddError(err).Info("While proxying to running")

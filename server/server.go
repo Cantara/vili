@@ -356,6 +356,10 @@ func (s Server) IsRunning(t typelib.ServerType) bool {
 	return false
 }
 
+func (s Server) HasRunning() bool {
+	return s.running != nil
+}
+
 func (s *Server) CheckReliability(hostname string) {
 	log.Println("reliabilityScore of testingServer compared to runningServer: ", s.reliabilityScore())
 	if s.reliabilityScore() >= -0.25 {
