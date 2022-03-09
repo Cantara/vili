@@ -35,8 +35,9 @@ func CreateNewServerStructure(server string) (newDir fslib.Dir, err error) {
 	err = baseDir.Copy(serverFile, fmt.Sprintf("%s/%s", newDir.Path(), serverFile.Name()))
 	return
 }
-func CreateNewServerInstanceStructure(serverDir fslib.Dir, server string, t typelib.ServerType, port string) (instanceDir fslib.Dir, err error) {
-	outerServerFile, err := fslib.File(server, nil)
+
+func CreateNewServerInstanceStructure(serverDir fslib.Dir, t typelib.ServerType, port string) (instanceDir fslib.Dir, err error) {
+	outerServerFile, err := fslib.NewFile(serverDir.File().Name()+".jar", nil)
 	if err != nil {
 		return
 	}
@@ -51,12 +52,8 @@ func CreateNewServerInstanceStructure(serverDir fslib.Dir, server string, t type
 		return
 	}
 
-	//Symlink support needed in Dirlib
-	//newFile := fmt.Sprintf("%s/current", server)
-	//os.Remove(newFile)
-	//os.Symlink(newInstancePath, newFile)
 	serverDir.Remove("current")
-	serverDir.Symlink(*instanceDir.BaseDir(), "current")
+	serverDir.Symlink(instanceDir.BaseDir(), "current")
 
 	logs, err := instanceDir.Mkdir("logs", 0755) //There is something here i don't like
 	if err != nil {
@@ -67,25 +64,19 @@ func CreateNewServerInstanceStructure(serverDir fslib.Dir, server string, t type
 		return
 	}
 
-	//Symlink support needed in Dirlib
-	//newFile = fmt.Sprintf("%s/logs", server)
-	//os.Remove(newFile)
 	serverDir.Remove("logs")
-	serverDir.Symlink(*logs.BaseDir(), "logs")
+	serverDir.Symlink(logs.BaseDir(), "logs")
 
 	//TODO move to another function i think
-	//base := GetBaseFromServer(server)
 	baseLogs := fmt.Sprintf("logs_%s-%s", os.Getenv("identifier"), t)
-	//os.Remove(newFile)
-	//os.Symlink(newInstancePath+"/logs", newFile)
 	baseDir.Remove(baseLogs)
-	baseDir.Symlink(*logs.BaseDir(), baseLogs)
+	baseDir.Symlink(logs.BaseDir(), baseLogs)
 	instanceExecPath := fmt.Sprintf("%s/%s.jar", instanceDir.Path(), os.Getenv("identifier"))
-	err = serverDir.Symlink(*serverFile, instanceExecPath)
+	err = serverDir.Symlink(serverFile, instanceExecPath)
 	if err != nil {
 		return
 	}
-	err = copyPropertyFile(&instanceDir, port, t)
+	err = copyPropertyFile(instanceDir, port, t)
 	if err != nil {
 		return
 	}
@@ -93,14 +84,6 @@ func CreateNewServerInstanceStructure(serverDir fslib.Dir, server string, t type
 	baseDir.FindAndCopy(authName, instanceDir.Path()+"/"+authName) //Could change copy function to add filename if none is given
 	return
 }
-
-/*
-func SymlinkFolder(server string, t typelib.ServerType) error {
-	newFile := fmt.Sprintf("%s-%s", os.Getenv("identifier"), t)
-	os.Remove(newFile)
-	return os.Symlink(server, newFile)
-}
-*/
 
 func GetFirstServerDir(t typelib.ServerType) (serverDir fslib.Dir, err error) {
 	fileName := fmt.Sprintf("%s-%s", os.Getenv("identifier"), t)
@@ -164,7 +147,7 @@ func getNewestServerDir(t typelib.ServerType) (serverDir fslib.Dir, err error) {
 	return
 }
 
-func copyPropertyFile(instanceDir *fslib.Dir, port string, t typelib.ServerType) (err error) {
+func copyPropertyFile(instanceDir fslib.Dir, port string, t typelib.ServerType) (err error) {
 	propertiesFileName := os.Getenv("properties_file_name")
 	if propertiesFileName == "" {
 		return
@@ -212,10 +195,10 @@ func copyAuthorizationFile(instance string) (err error) {
 }
 */
 
-func GetOldestFile(fsys fs.FS, dir string) string {
+func GetOldestFile(fsys fslib.Dir) string {
 	oldestPath := ""
 	oldest := time.Now()
-	fs.WalkDir(fsys, dir, func(path string, d fs.DirEntry, err error) error {
+	fs.WalkDir(fsys, ".", func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			log.AddError(err).Info("While reading dir to get oldest file")
 			return nil
@@ -235,24 +218,4 @@ func GetOldestFile(fsys fs.FS, dir string) string {
 		return nil
 	})
 	return oldestPath
-}
-
-func GetDirSize(fsys fs.FS, dir string) int64 {
-	var total int64
-	fs.WalkDir(fsys, dir, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			log.AddError(err).Info("While reading dir to get size")
-			return nil
-		}
-		if !d.IsDir() {
-			inf, err := d.Info()
-			if err != nil {
-				log.AddError(err).Info("While getting file info to get dir size")
-				return nil
-			}
-			total += inf.Size()
-		}
-		return nil
-	})
-	return total
 }

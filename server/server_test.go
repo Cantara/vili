@@ -6,6 +6,21 @@ import (
 	"testing"
 )
 
+func setupBase(t *testing.T) (serv Server) {
+	zipperChan := make(chan string, 1)
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Errorf("os.Getwd() got err: %v", err)
+	}
+	from, to := 8000, 8080
+	serv, cloase, err := Initialize(wd, zipperChan, from, to)
+	if err != nil {
+		t.Errorf("Initialize(%s, %p, %d, %d) got err: %v", wd, zipperChan, from, to, err)
+	}
+	cloase()
+	return
+}
+
 func TestInitialize(t *testing.T) {
 	zipperChan := make(chan string, 1)
 	wd, err := os.Getwd()
@@ -40,17 +55,7 @@ func TestInitialize(t *testing.T) {
 }
 
 func TestNoTesting(t *testing.T) {
-	zipperChan := make(chan string, 1)
-	wd, err := os.Getwd()
-	if err != nil {
-		t.Errorf("os.Getwd() got err: %v", err)
-	}
-	from, to := 8000, 8080
-	serv, cloase, err := Initialize(wd, zipperChan, from, to)
-	if err != nil {
-		t.Errorf("Initialize(%s, %p, %d, %d) got err: %v", wd, zipperChan, from, to, err)
-	}
-	cloase()
+	serv := setupBase(t)
 
 	if serv.HasTesting() {
 		t.Errorf("Server has a testing when it shouldn't")
@@ -58,17 +63,7 @@ func TestNoTesting(t *testing.T) {
 }
 
 func TestCheckReliability(t *testing.T) {
-	zipperChan := make(chan string, 1)
-	wd, err := os.Getwd()
-	if err != nil {
-		t.Errorf("os.Getwd() got err: %v", err)
-	}
-	from, to := 8000, 8080
-	serv, cloase, err := Initialize(wd, zipperChan, from, to)
-	if err != nil {
-		t.Errorf("Initialize(%s, %p, %d, %d) got err: %v", wd, zipperChan, from, to, err)
-	}
-	cloase()
+	serv := setupBase(t)
 
 	serv.CheckReliability("")
 	select {

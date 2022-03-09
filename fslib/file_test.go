@@ -6,9 +6,22 @@ import (
 	"testing"
 )
 
+func TestInterfaceFile(t *testing.T) {
+	var f File
+	file, err := NewFileInMem("name", nil)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	f = &file
+	if f.Name() != "name" {
+		t.Error("Name from interface is wrong")
+	}
+}
+
 func TestDir(t *testing.T) {
 	d1Path := "/"
-	d1, err := DirFile(d1Path, nil)
+	d1, err := NewDirFile(d1Path, nil)
 	if err != nil {
 		t.Error(err)
 		return
@@ -21,7 +34,7 @@ func TestDir(t *testing.T) {
 
 func TestFile(t *testing.T) {
 	f1Path := "f1"
-	f1, err := File(f1Path, nil)
+	f1, err := NewFile(f1Path, nil)
 	if err != nil {
 		t.Error(err)
 		return
@@ -34,7 +47,7 @@ func TestFile(t *testing.T) {
 
 func TestInMemDir(t *testing.T) {
 	d1Path := "/"
-	d1, err := DirInMem(d1Path, nil)
+	d1, err := NewDirInMem(d1Path, nil)
 	if err != nil {
 		t.Error(err)
 		return
@@ -47,7 +60,7 @@ func TestInMemDir(t *testing.T) {
 
 func TestInMemFile(t *testing.T) {
 	f1Path := "f1"
-	f1, err := FileInMem(f1Path, nil)
+	f1, err := NewFileInMem(f1Path, nil)
 	if err != nil {
 		t.Error(err)
 		return
@@ -60,13 +73,13 @@ func TestInMemFile(t *testing.T) {
 
 func TestInMemParentDir(t *testing.T) {
 	d1Path := "/"
-	d1, err := DirInMem(d1Path, nil)
+	d1, err := NewDirInMem(d1Path, nil)
 	if err != nil {
 		t.Error(err)
 		return
 	}
 	f1Path := "/f1"
-	f1, err := FileInMem(f1Path, &d1)
+	f1, err := NewFileInMem(f1Path, &d1)
 	if err != nil {
 		t.Error(err)
 		return
@@ -84,13 +97,13 @@ func TestParentDir(t *testing.T) {
 		return
 	}
 	d1Path := dir + "/test"
-	d1, err := DirFile(d1Path, nil)
+	d1, err := NewDirFile(d1Path, nil)
 	if err != nil {
 		t.Error(err)
 		return
 	}
 	f1Path := d1Path + "/f1"
-	f1, err := File(f1Path, &d1)
+	f1, err := NewFile(f1Path, &d1)
 	if err != nil {
 		t.Error(err)
 		return
@@ -115,7 +128,7 @@ func TestParentDir(t *testing.T) {
 
 func TestFileWriteFileNotOpened(t *testing.T) {
 	f1Path := "f1"
-	f1, err := File(f1Path, nil)
+	f1, err := NewFile(f1Path, nil)
 	if err != nil {
 		t.Error(err)
 		return
@@ -130,7 +143,7 @@ func TestFileWriteFileNotOpened(t *testing.T) {
 
 func TestFileReadFileNotOpened(t *testing.T) {
 	f1Path := "f1"
-	f1, err := File(f1Path, nil)
+	f1, err := NewFile(f1Path, nil)
 	if err != nil {
 		t.Error(err)
 		return
@@ -145,7 +158,7 @@ func TestFileReadFileNotOpened(t *testing.T) {
 
 func TestFileInMemWriteFileNotOpened(t *testing.T) {
 	f1Path := "f1"
-	f1, err := FileInMem(f1Path, nil)
+	f1, err := NewFileInMem(f1Path, nil)
 	if err != nil {
 		t.Error(err)
 		return
@@ -160,7 +173,7 @@ func TestFileInMemWriteFileNotOpened(t *testing.T) {
 
 func TestFileInMemReadFileNotOpened(t *testing.T) {
 	f1Path := "f1"
-	f1, err := FileInMem(f1Path, nil)
+	f1, err := NewFileInMem(f1Path, nil)
 	if err != nil {
 		t.Error(err)
 		return
@@ -216,7 +229,7 @@ func testWriteAndRead(f file, t *testing.T) {
 
 func TestFileWriteAndRead(t *testing.T) {
 	f1Path := "f1"
-	f1, err := File(f1Path, nil)
+	f1, err := NewFile(f1Path, nil)
 	if err != nil {
 		t.Error(err)
 		return
@@ -226,7 +239,7 @@ func TestFileWriteAndRead(t *testing.T) {
 
 func TestFileInMemWriteAndRead(t *testing.T) {
 	f1Path := "f1"
-	f1, err := FileInMem(f1Path, nil)
+	f1, err := NewFileInMem(f1Path, nil)
 	if err != nil {
 		t.Error(err)
 		return

@@ -15,7 +15,8 @@ func TestCreateServerStructureWithoutServerFile(t *testing.T) {
 		t.Error(err)
 		return
 	}
-	baseDir, err = fslib.NewInMemDir("/")
+	bDir, err := fslib.NewInMemDir("/")
+	baseDir = &bDir
 	if err != nil {
 		t.Error(err)
 		return
@@ -35,7 +36,8 @@ func TestCreateNewServerInstanceStructure(t *testing.T) {
 		t.Error(err)
 		return
 	}
-	baseDir, err = fslib.NewInMemDir("/")
+	bDir, err := fslib.NewInMemDir("/")
+	baseDir = &bDir
 	if err != nil {
 		t.Error(err)
 		return
@@ -46,7 +48,7 @@ func TestCreateNewServerInstanceStructure(t *testing.T) {
 		return
 	}
 
-	_, err = CreateNewServerInstanceStructure(serverDir, "/something.jar", typelib.RUNNING, "8080")
+	_, err = CreateNewServerInstanceStructure(serverDir, typelib.RUNNING, "8080")
 	if err == nil {
 		t.Error("No error when trying to create a new instance without a runnable file")
 		return
@@ -65,37 +67,79 @@ func setupFullTestEnv() (identifier, localPropFileName string, err error) {
 	return
 }
 
+func TestOneFSInMem(t *testing.T) {
+	var err error
+	bDir, err := fslib.NewInMemDir("/")
+	baseDir = &bDir
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	testFullOneServer(t)
+}
+
+func TestOneFSInWD(t *testing.T) {
+	var err error
+	bDir, err := fslib.NewDirFromWD()
+	baseDir = &bDir
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	testFullOneServer(t)
+}
+
 func TestFullFSInMem(t *testing.T) {
-	identifier, localPropFileName, err := setupFullTestEnv()
+	var err error
+	bDir, err := fslib.NewInMemDir("/")
+	baseDir = &bDir
 	if err != nil {
 		t.Error(err)
 		return
 	}
-	baseDir, err = fslib.NewInMemDir("/")
+	server, serverDir, err := testFullOneServer(t)
 	if err != nil {
 		t.Error(err)
 		return
 	}
-	testFullFS(identifier, localPropFileName, t)
+	testFullSecoundServer(server, serverDir, t)
 }
 
 func TestFullFSInWD(t *testing.T) {
+	var err error
+	bDir, err := fslib.NewDirFromWD()
+	baseDir = &bDir
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	server, serverDir, err := testFullOneServer(t)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	testFullSecoundServer(server, serverDir, t)
+}
+
+func testFullOneServer(t *testing.T) (server fslib.File, serverDir fslib.Dir, err error) {
+	baseDir.RemoveAll("testDir")
+	baseTestDir, err := baseDir.Mkdir("testDir", 0755)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	baseDir = baseTestDir
 	identifier, localPropFileName, err := setupFullTestEnv()
 	if err != nil {
 		t.Error(err)
 		return
 	}
-	baseDir, err = fslib.NewDirFromWD()
+	server, err = baseDir.Create(identifier + ".jar")
 	if err != nil {
 		t.Error(err)
 		return
 	}
-	testFullFS(identifier, localPropFileName, t)
-}
-
-func testFullFS(identifier, localPropFileName string, t *testing.T) {
-	baseDir.RemoveAll("*")
-	server, err := baseDir.Create(identifier + ".jar")
+	_, err = server.WriteString("Some string to give the file data")
 	if err != nil {
 		t.Error(err)
 		return
@@ -115,25 +159,26 @@ func testFullFS(identifier, localPropFileName string, t *testing.T) {
 	}
 	auth.Close()
 
-	serverDir, err := CreateNewServerStructure(server.Path())
+	serverDir, err = CreateNewServerStructure(server.Path())
 	if err != nil {
 		t.Error(err)
 		return
 	}
-	if serverDir.Path() != baseDir.Path()+identifier {
-		t.Error("Server dir path is incorect")
+	if serverDir.Path() != baseDir.Path()+"/"+identifier {
+		t.Error("Server dir path is incorect", serverDir.Path(), baseDir.Path()+identifier)
 		return
 	}
 	if !baseDir.Exists(fmt.Sprintf("/%[1]s/%[1]s.jar", identifier)) {
 		t.Error("Server structure is not correct")
 		return
 	}
-	instanceDir, err := CreateNewServerInstanceStructure(serverDir, server.Path(), typelib.RUNNING, "8080")
+	instanceDir, err := CreateNewServerInstanceStructure(serverDir, typelib.TESTING, "8080")
 	if err != nil {
 		t.Error(err)
 		return
 	}
-	instanceDir.PrintTree()
+	//instanceDir.PrintTree()
+	//baseDir.PrintTree() TODO: Figure out why there is a 'loop' here
 	if !instanceDir.Exists("logs") {
 		t.Error("Log dir missing in instance dir")
 		return
@@ -151,4 +196,8 @@ func testFullFS(identifier, localPropFileName string, t *testing.T) {
 		return
 	}
 	return
+}
+
+func testFullSecoundServer(server fslib.File, serverDir fslib.Dir, t *testing.T) (err error) {
+	return //TODO implement
 }

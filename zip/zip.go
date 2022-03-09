@@ -3,22 +3,20 @@ package zip
 import (
 	"archive/zip"
 	"compress/flate"
-	"fmt"
 	"io"
 	"io/ioutil"
-	"os"
 
 	log "github.com/cantara/bragi"
-	"github.com/cantara/vili/fs"
+	"github.com/cantara/vili/fslib"
 )
 
 type Zipper struct {
-	OutDir string
+	Dir fslib.Dir
 }
 
-func (z Zipper) ZipDir(server string) (err error) {
-	log.Println("Achiving server ", server)
-	outFile, err := os.Create(fmt.Sprintf("%s/%s.zip", z.OutDir, fs.GetFileFromPath(server)))
+func (z Zipper) ZipDir(serverDir fslib.Dir) (err error) {
+	log.Println("Achiving server ", serverDir)
+	outFile, err := z.Dir.Create(serverDir.File().Name() + ".zip")
 	if err != nil {
 		return
 	}
@@ -29,7 +27,7 @@ func (z Zipper) ZipDir(server string) (err error) {
 		return flate.NewWriter(out, flate.BestCompression)
 	})
 
-	err = addFiles(w, server+"/", "")
+	err = addFiles(w, serverDir, "")
 	if err != nil {
 		return
 	}
@@ -39,20 +37,20 @@ func (z Zipper) ZipDir(server string) (err error) {
 	if err != nil {
 		return
 	}
-	err = os.RemoveAll(server)
+	err = serverDir.File().RemoveAll()
 	return
 }
 
-func addFiles(w *zip.Writer, basePath, baseInZip string) (err error) {
-	files, err := ioutil.ReadDir(basePath)
+func addFiles(w *zip.Writer, serverDir fslib.Dir, baseInZip string) (err error) {
+	files, err := serverDir.ReadDir("*")
 	if err != nil {
 		return
 	}
 
 	for _, file := range files {
-		log.Println("ziping: " + basePath + file.Name())
+		log.Println("ziping: " + serverDir.Path() + file.Name())
 		if !file.IsDir() {
-			dat, err := ioutil.ReadFile(basePath + file.Name())
+			dat, err := ioutil.ReadFile(serverDir.Path() + file.Name())
 			if err != nil {
 				log.Println(err)
 				continue
@@ -69,7 +67,10 @@ func addFiles(w *zip.Writer, basePath, baseInZip string) (err error) {
 				continue
 			}
 		} else if file.IsDir() {
-			newBase := basePath + file.Name() + "/"
+			newBase, err := serverDir.Cd(file.Name())
+			if err != nil {
+				return err
+			}
 			err = addFiles(w, newBase, baseInZip+file.Name()+"/")
 			if err != nil {
 				log.Println(err)

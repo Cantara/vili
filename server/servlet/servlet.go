@@ -13,12 +13,13 @@ import (
 	"time"
 
 	log "github.com/cantara/bragi"
+	"github.com/cantara/vili/fslib"
 	"github.com/cantara/vili/tail"
 )
 
 type Servlet struct {
 	Port     string
-	Dir      string
+	Dir      fslib.Dir
 	errors   uint64
 	warnings uint64
 	breaking uint64
@@ -61,21 +62,25 @@ func (s Servlet) IsRunning() bool {
 	return s.cmd.Process.Signal(syscall.Signal(0)) == nil
 }
 
-func NewServlet(serverFolder, port string) (servlet Servlet, err error) {
-	stdOut, err := os.OpenFile(serverFolder+"/stdOut", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+func NewServlet(servletDir fslib.Dir, port string) (servlet Servlet, err error) {
+	stdOut, err := servletDir.Create("stdOut") //, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
 	if err != nil {
 		return
 	}
-	stdErr, err := os.OpenFile(serverFolder+"/stdErr", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+	stdErr, err := servletDir.Create("stdErr") //, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+	if err != nil {
+		return
+	}
+	server, err := servletDir.Find(os.Getenv("identifier") + ".jar")
 	if err != nil {
 		return
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	cmd := exec.Command("java", "-jar", fmt.Sprintf("%s/%s.jar", serverFolder, os.Getenv("identifier")))
+	cmd := exec.Command("java", "-jar", server.Path()) //fmt.Sprintf("%s/%s.jar", servletDir.Path(), os.Getenv("identifier")))
 	if os.Getenv("properties_file_name") == "" {
-		cmd = exec.Command("java", fmt.Sprintf("-D%s=%s", os.Getenv("port_identifier"), port), "-jar", fmt.Sprintf("%s/%s.jar", serverFolder, os.Getenv("identifier")))
+		cmd = exec.Command("java", fmt.Sprintf("-D%s=%s", os.Getenv("port_identifier"), port), "-jar", server.Path()) //fmt.Sprintf("%s/%s.jar", servletDir.Path(), os.Getenv("identifier")))
 	}
-	cmd.Dir = serverFolder
+	cmd.Dir = servletDir.Path()
 	cmd.Stdout = stdOut
 	cmd.Stderr = stdErr
 	log.Debug(cmd)
@@ -83,7 +88,7 @@ func NewServlet(serverFolder, port string) (servlet Servlet, err error) {
 	if err != nil {
 		return
 	}
-	pid, err := os.OpenFile(serverFolder+"/pid", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+	pid, err := servletDir.Create("pid") //, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
 	if err == nil {
 		fmt.Fprintln(pid, cmd.Process.Pid)
 		pid.Close()
@@ -91,7 +96,7 @@ func NewServlet(serverFolder, port string) (servlet Servlet, err error) {
 	time.Sleep(time.Second * 2) //Sleep an arbitrary amout of time so the service can start without getting any new request, this should not be needed
 	servlet = Servlet{
 		Port: port,
-		Dir:  serverFolder,
+		Dir:  servletDir,
 		cmd:  cmd,
 		ctx:  ctx,
 		Kill: func() {

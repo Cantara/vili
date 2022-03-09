@@ -3,13 +3,15 @@ package server
 import (
 	"container/list"
 	"context"
+	"fmt"
+	"os"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
 	log "github.com/cantara/bragi"
 	"github.com/cantara/vili/fs"
+	"github.com/cantara/vili/fslib"
 	"github.com/cantara/vili/server/servlet"
 	"github.com/cantara/vili/slack"
 	"github.com/cantara/vili/typelib"
@@ -19,6 +21,7 @@ type commandType int
 
 const (
 	newServer commandType = iota
+	startServer
 	newService
 	restartServer
 	deployServer
@@ -26,6 +29,7 @@ const (
 
 type commandData struct {
 	server     string
+	serverDir  fslib.Dir
 	command    commandType
 	serverType typelib.ServerType
 }
@@ -34,9 +38,10 @@ type Server struct {
 	running        servletHandler
 	testing        servletHandler
 	availablePorts *list.List
-	oldFolders     chan<- string
+	oldFolders     chan<- fslib.Dir
 	serverCommands chan commandData
-	dir            string
+	dir            fslib.Dir
+	cancel         func()
 }
 
 type servletHandler struct {
@@ -45,10 +50,11 @@ type servletHandler struct {
 	mutex      sync.Mutex
 	isDying    bool
 	serverType typelib.ServerType
-	dir        string
+	dir        fslib.Dir
 }
 
-func Initialize(workingDir string, of chan<- string, portrangeFrom, portrangeTo int) (s Server, cancel func(), err error) {
+func Initialize(workingDir fslib.Dir, of chan<- fslib.Dir, portrangeFrom, portrangeTo int) (s Server, err error) {
+	ctx, cancel := context.WithCancel(context.Background())
 	s = Server{
 		running: servletHandler{
 			serverType: typelib.RUNNING,
@@ -59,38 +65,40 @@ func Initialize(workingDir string, of chan<- string, portrangeFrom, portrangeTo 
 		oldFolders:     of,
 		serverCommands: make(chan commandData, 5),
 		dir:            workingDir,
+		cancel:         cancel,
 	}
 	s.setAvailablePorts(portrangeFrom, portrangeTo)
 
-	ctx, cancel := context.WithCancel(context.Background())
 	go s.newServerWatcher(ctx)
 	return
 }
 
 func (s *Server) StartExcistingRunning() (err error) {
-	firstServerPath, err := fs.GetFirstServerDir(s.dir, typelib.RUNNING)
+	firstServerDir, err := fs.GetFirstServerDir(typelib.RUNNING)
 	if err != nil {
 		return
 	}
-	log.Debug(firstServerPath)
-	//err = s.startService(firstServerPath, typelib.RUNNING)
+	log.Debug(firstServerDir.Path())
+	s.startService(firstServerDir, typelib.RUNNING)
+	/*err = s.startService(firstServerDir, typelib.RUNNING)
 	if err != nil {
 		return
-	}
+	}*/
 	return
 }
 
 func (s *Server) StartExcistingTesting() (err error) {
-	firstTestServerPath, err := fs.GetFirstServerDir(s.dir, typelib.TESTING)
+	firstTestServerDir, err := fs.GetFirstServerDir(typelib.TESTING)
 	if err != nil {
 		return
 	}
-	log.Debug(firstTestServerPath)
-	if s.running.dir != firstTestServerPath {
-		//err = s.startService(firstTestServerPath, typelib.TESTING)
+	log.Debug(firstTestServerDir.Path())
+	if s.running.dir.Path() != firstTestServerDir.Path() {
+		s.startService(firstTestServerDir, typelib.TESTING)
+		/*err = s.startService(firstTestServerDir, typelib.TESTING)
 		if err != nil {
 			return
-		}
+		}*/
 	}
 	return
 }
@@ -107,18 +115,17 @@ func (s *Server) newServerWatcher(ctx context.Context) {
 					log.AddError(err).Error("Creatubg new server structure")
 					continue
 				}
-				oldFolder := ""
+				var oldFolder fslib.Dir
 				if s.testing.servlet != nil {
 					oldFolder = s.testing.dir
 				}
-				if oldFolder != "" {
+				if oldFolder != nil {
 					s.oldFolders <- oldFolder
 				}
 				//err = s.startService(path, typelib.TESTING)
-			case newService:
-				command.server = strings.TrimRight(command.server, "/")
+			case startServer:
 				port := s.getAvailablePort()
-				newPath, err := fs.CreateNewServerInstanceStructure(command.server, command.serverType, port)
+				newPath, err := fs.CreateNewServerInstanceStructure(command.serverDir, command.serverType, port)
 				if err != nil {
 					s.availablePorts.PushFront(port)
 					continue
@@ -136,18 +143,18 @@ func (s *Server) newServerWatcher(ctx context.Context) {
 				case typelib.RUNNING:
 					s.running.mutex.Lock()
 					oldServer, s.running.servlet = s.running.servlet, &serv
-					s.running.dir = command.server
+					s.running.dir = command.serverDir
 					s.running.isDying = false
 					s.running.mutex.Unlock()
 				case typelib.TESTING:
 					s.testing.mutex.Lock()
 					oldServer, s.testing.servlet = s.testing.servlet, &serv
-					s.testing.dir = command.server
+					s.testing.dir = command.serverDir
 					s.testing.isDying = false
 					s.testing.mutex.Unlock()
 				}
 
-				err = fs.SymlinkFolder(command.server, command.serverType)
+				err = command.serverDir.Symlink(command.serverDir.File(), fmt.Sprintf("%s-%s", os.Getenv("identifier"), command.serverType.String()))
 				if oldServer != nil {
 					oldServer.Kill()
 					s.availablePorts.PushFront(oldServer.Port)
@@ -221,8 +228,12 @@ func (s *Server) Restart(t typelib.ServerType) {
 	//s.serverCommands <- commandData{command: restartServer, serverType: t}
 }
 
-func (s *Server) startService(path string, t typelib.ServerType) {
-	s.serverCommands <- commandData{command: newService, server: path, serverType: t}
+func (s *Server) newVersion(server string, t typelib.ServerType) {
+	s.serverCommands <- commandData{command: newService, server: server, serverType: t}
+}
+
+func (s *Server) startService(serverDir fslib.Dir, t typelib.ServerType) {
+	s.serverCommands <- commandData{command: startServer, serverDir: serverDir, serverType: t}
 }
 
 func (s Server) reliabilityScore() float64 {
@@ -244,8 +255,10 @@ func (s *Server) watchServerStatus(t typelib.ServerType, serv *servlet.Servlet) 
 }
 
 func (s Server) GetRunningVersion() string {
-	path := strings.Split(s.running.dir, "/")
-	return path[len(path)-1]
+	if s.running.dir == nil {
+		return "unknown"
+	}
+	return s.running.dir.File().Name()
 }
 
 func (s Server) GetPort(t typelib.ServerType) string {
@@ -360,6 +373,7 @@ func (s *Server) CheckReliability(hostname string) {
 }
 
 func (s *Server) Kill() {
+	s.cancel()
 	s.testing.mutex.Lock()
 	if s.testing.servlet != nil {
 		s.testing.servlet.Kill()

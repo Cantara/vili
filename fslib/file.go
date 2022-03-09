@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	stdFS "io/fs"
+	fs "io/fs"
 	"os"
 	"path/filepath"
 	"time"
@@ -19,7 +19,7 @@ type file struct {
 	size    int64
 	path    string
 	modTime time.Time
-	mode    stdFS.FileMode
+	mode    fs.FileMode
 	isDir   bool
 	osFile  *os.File
 	cur     int
@@ -33,7 +33,7 @@ var (
 	FileIsDir     = errors.New("file is dir")
 )
 
-func File(path string, dir *file) (f file, err error) {
+func NewFile(path string, dir *file) (f file, err error) {
 	f = file{
 		path: filepath.Clean(path),
 		dir:  dir,
@@ -44,8 +44,8 @@ func File(path string, dir *file) (f file, err error) {
 	return
 }
 
-func DirFile(path string, dir *file) (f file, err error) {
-	f, err = File(path, dir)
+func NewDirFile(path string, dir *file) (f file, err error) {
+	f, err = NewFile(path, dir)
 	if err != nil {
 		return
 	}
@@ -53,8 +53,8 @@ func DirFile(path string, dir *file) (f file, err error) {
 	return
 }
 
-func FileInMem(path string, dir *file) (f file, err error) {
-	f, err = File(path, dir)
+func NewFileInMem(path string, dir *file) (f file, err error) {
+	f, err = NewFile(path, dir)
 	if err != nil {
 		return
 	}
@@ -62,8 +62,8 @@ func FileInMem(path string, dir *file) (f file, err error) {
 	return
 }
 
-func DirInMem(path string, dir *file) (f file, err error) {
-	f, err = DirFile(path, dir)
+func NewDirInMem(path string, dir *file) (f file, err error) {
+	f, err = NewDirFile(path, dir)
 	if err != nil {
 		return
 	}
@@ -71,8 +71,8 @@ func DirInMem(path string, dir *file) (f file, err error) {
 	return
 }
 
-func FileFromFileInfo(path string, fileInfo stdFS.FileInfo, dir *file) (f file, err error) {
-	f, err = File(path, dir)
+func NewFileFromFileInfo(path string, fileInfo fs.FileInfo, dir *file) (f file, err error) {
+	f, err = NewFile(path, dir)
 	if err != nil {
 		return
 	}
@@ -81,10 +81,6 @@ func FileFromFileInfo(path string, fileInfo stdFS.FileInfo, dir *file) (f file, 
 	f.size = fileInfo.Size()
 	f.modTime = fileInfo.ModTime()
 	return
-}
-
-func (dir *file) symlinkFile(f *file) {
-	dir.dirData = append(dir.dirData, f)
 }
 
 func (f *file) Open() (err error) {
@@ -117,7 +113,7 @@ func (f *file) Open() (err error) {
 	}
 	for i := range files {
 		/*
-			var fileInfo stdFS.FileInfo
+			var fileInfo fs.FileInfo
 			fileInfo, err = files[i].Info()
 			if err != nil {
 				if errors.Is(err, os.ErrNotExist) {
@@ -128,7 +124,7 @@ func (f *file) Open() (err error) {
 			}
 			fffi, err := FileFromFileInfo(fmt.Sprintf("%s/%s", f.path, fileInfo.Name()), fileInfo, f)
 		*/
-		fffi, err := FileFromFileInfo(fmt.Sprintf("%s/%s", f.path, files[i].Name()), files[i], f)
+		fffi, err := NewFileFromFileInfo(fmt.Sprintf("%s/%s", f.path, files[i].Name()), files[i], f)
 		if err != nil {
 			continue //Could be that i should return here
 		}
@@ -147,7 +143,7 @@ func (f *file) Create() (err error) {
 		return nil
 	}
 	if f.Exists() {
-		return stdFS.ErrExist
+		return fs.ErrExist
 	}
 	f.osFile, err = os.Create(f.path)
 	if err != nil {
@@ -157,21 +153,21 @@ func (f *file) Create() (err error) {
 	return
 }
 
-func (f *file) NewFile(path string) (fout *file, err error) {
+func (f *file) NewFile(path string) (fout File, err error) {
 	if !f.IsDir() {
 		err = FileNotDir
 		return
 	}
 	var ft file
 	if f.inMem {
-		ft, err = FileInMem(path, f)
+		ft, err = NewFileInMem(path, f)
 		if err != nil {
 			return
 		}
 		fout = &ft
-		f.dirData = append(f.dirData, fout)
+		f.dirData = append(f.dirData, &ft)
 	} else {
-		ft, err = File(path, f)
+		ft, err = NewFile(path, f)
 		if err != nil {
 			return
 		}
@@ -180,21 +176,21 @@ func (f *file) NewFile(path string) (fout *file, err error) {
 	return
 }
 
-func (f *file) NewDir(path string) (fout *file, err error) {
+func (f *file) NewDir(path string) (fout File, err error) {
 	if !f.IsDir() {
 		err = FileNotDir
 		return
 	}
 	var ft file
 	if f.inMem {
-		ft, err = DirInMem(path, f)
+		ft, err = NewDirInMem(path, f)
 		if err != nil {
 			return
 		}
 		fout = &ft
-		f.dirData = append(f.dirData, fout)
+		f.dirData = append(f.dirData, &ft)
 	} else {
-		ft, err = DirFile(path, f)
+		ft, err = NewDirFile(path, f)
 		if err != nil {
 			return
 		}
@@ -203,7 +199,7 @@ func (f *file) NewDir(path string) (fout *file, err error) {
 	return
 }
 
-func (f *file) Mkdir(perm stdFS.FileMode) (err error) {
+func (f *file) Mkdir(perm fs.FileMode) (err error) { //Could this be changed into a function that deprecates NewDir
 	if !f.IsDir() {
 		return FileNotDir
 	}
@@ -233,12 +229,28 @@ func (f *file) Remove() (err error) {
 	return os.Remove(f.path)
 }
 
+func (f *file) RemoveAll() (err error) {
+	if !f.inMem {
+		return os.RemoveAll(f.Path())
+	}
+	if f.IsDir() {
+		for i := range f.dirData {
+			err = f.dirData[i].RemoveAll()
+			if err != nil {
+				return
+			}
+		}
+	}
+
+	return f.Remove()
+}
+
 func (f file) Exists() bool {
 	_, err := f.Stat()
 	return !errors.Is(err, os.ErrNotExist)
 }
 
-func (f *file) Stat() (fileInfoOut stdFS.FileInfo, err error) {
+func (f *file) Stat() (fileInfoOut fs.FileInfo, err error) {
 	if f.inMem {
 		return f, nil
 	}
@@ -273,7 +285,10 @@ func (f *file) Read(out []byte) (length int, err error) {
 	return f.osFile.Read(out)
 }
 
-func (f file) ReadDir() ([]stdFS.DirEntry, error) {
+func (f file) ReadDir() ([]fs.DirEntry, error) {
+	if !f.IsDir() {
+		return nil, FileNotDir
+	}
 	if f.opened {
 		return nil, FileOpened
 	}
@@ -283,7 +298,7 @@ func (f file) ReadDir() ([]stdFS.DirEntry, error) {
 			return nil, err
 		}
 	}
-	out := make([]stdFS.DirEntry, len(f.dirData))
+	out := make([]fs.DirEntry, len(f.dirData))
 	for i := range f.dirData {
 		out[i] = f.dirData[i]
 	}
@@ -296,7 +311,7 @@ func (f file) ReadDir() ([]stdFS.DirEntry, error) {
 	return out, nil
 }
 
-func (f file) Readdir() ([]stdFS.FileInfo, error) {
+func (f file) Readdir() ([]File, error) { //fs.FileInfo I don't think this is needed to satisfy any interfaces
 	if f.opened {
 		return nil, FileOpened
 	}
@@ -306,7 +321,7 @@ func (f file) Readdir() ([]stdFS.FileInfo, error) {
 			return nil, err
 		}
 	}
-	out := make([]stdFS.FileInfo, len(f.dirData))
+	out := make([]File, len(f.dirData))
 	for i := range f.dirData {
 		out[i] = f.dirData[i]
 	}
@@ -355,11 +370,11 @@ func (f file) Size() int64 {
 	return f.size
 }
 
-func (f file) Mode() stdFS.FileMode {
+func (f file) Mode() fs.FileMode {
 	return f.mode
 }
 
-func (f file) Type() stdFS.FileMode {
+func (f file) Type() fs.FileMode {
 	return f.mode
 }
 
@@ -375,7 +390,7 @@ func (f file) Sys() interface{} {
 	return nil //TODO: Not implemented
 }
 
-func (f file) Info() (stdFS.FileInfo, error) {
+func (f file) Info() (fs.FileInfo, error) {
 	return f, nil
 }
 
@@ -408,7 +423,18 @@ func (f *file) Symlink(dst string) (err error) {
 		return
 	}
 	err = os.Symlink(f.path, dst)
+	/*
+		dstFile, err := d.FindDir(dst)
+		if err != nil {
+			return err
+		}
+		dstFile.backSymlinkFile(f)
+	*/
 	return
+}
+
+func (dir *file) backSymlinkFile(f *file) {
+	dir.dirData = append(dir.dirData, f)
 }
 
 func (f file) Readlink() (out string, err error) {
@@ -421,33 +447,4 @@ func (f file) Readlink() (out string, err error) {
 		return
 	}
 	return os.Readlink(f.Path())
-}
-
-func (f *file) find(path string) (out *file, err error) { //Expects a clean path TODO Add tests
-	if path == "." || f.path == path {
-		return f, nil
-	}
-	if !f.IsDir() {
-		return
-	}
-	if !f.opened {
-		err = f.Open()
-		if err != nil {
-			return
-		}
-		defer f.Close()
-	}
-	for i := range f.dirData {
-		if f.dirData[i].path == path {
-			return f.dirData[i], nil
-		}
-		out, err = f.dirData[i].find(path)
-		if out != nil {
-			return
-		}
-	}
-	if out == nil {
-		err = stdFS.ErrNotExist
-	}
-	return
 }

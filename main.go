@@ -3,8 +3,10 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	stdFs "io/fs"
 	"net/http"
 	"os"
 	"strconv"
@@ -13,6 +15,7 @@ import (
 
 	log "github.com/cantara/bragi"
 	"github.com/cantara/vili/fs"
+	"github.com/cantara/vili/fslib"
 	"github.com/cantara/vili/server"
 	"github.com/cantara/vili/slack"
 	"github.com/cantara/vili/typelib"
@@ -86,18 +89,22 @@ func main() {
 	slack.Client = slack.NewClient(os.Getenv("app_icon"), os.Getenv("env_icon"), os.Getenv("env"), os.Getenv("identifier"))
 	slack.Sendf(" :heart: Vili starting on host: %s", hostname)
 
-	wd, err := os.Getwd()
+	wd, err := fslib.NewDirFromWD()
 	if err != nil {
 		log.Fatal(err)
 	}
-	z = zip.Zipper{
-		OutDir: fmt.Sprintf("%s/%s", wd, "archive"),
-	}
-	if !fs.FileExists(z.OutDir) {
-		err = os.Mkdir(z.OutDir, 0755)
-		if err != nil {
-			log.Fatal(err)
+	archiveDir, err := wd.Cd("archive")
+	if err != nil {
+		if !errors.Is(err, stdFs.ErrNotExist) {
+			log.AddError(err).Fatal("While opening archive directory")
 		}
+		archiveDir, err = wd.Mkdir("archive", 0755)
+		if err != nil {
+			log.AddError(err).Fatal("While creating archive dir")
+		}
+	}
+	z = zip.Zipper{
+		Dir: archiveDir,
 	}
 
 	endpoint = os.Getenv("endpoint")
@@ -111,8 +118,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	zipperChan := make(chan string, 1)
-	fileSystem := os.DirFS(wd)
+	zipperChan := make(chan fslib.Dir, 1)
 	go func() {
 		for {
 			oldFolder := <-zipperChan
@@ -120,15 +126,15 @@ func main() {
 			if err != nil {
 				log.Println(err)
 			}
-			for fs.GetDirSize(fileSystem, "archive") > 1<<30 {
+			for archiveDir.Size() > 1<<30 {
 				go slack.Sendf("Archive too large, cleaning up on server: %s.", hostname)
-				os.Remove(fs.GetOldestFile(fileSystem, "archive"))
+				archiveDir.RemoveAll(fs.GetOldestFile(archiveDir))
 			}
 		}
 	}()
 
 	verifyChan := make(chan endpointToVerify, 10) // Arbitrary large number that hopefully will not block
-	serv, err := server.Initialize(wd, zipperChan, from, to)
+	serv, err := server.Initialize(&wd, zipperChan, from, to)
 	if err != nil {
 		slack.Sendf(":sos: <!channel> Uable to initialize vili on host %s.", hostname)
 		log.AddError(err).Fatal("While inizalicing server")
@@ -167,12 +173,12 @@ func main() {
 		log.Fatal(err)
 	}
 	defer watcher.Close()
-	err = watcher.AddWatch(wd, inotify.InCreate)
+	err = watcher.AddWatch(wd.Path(), inotify.InCreate)
 	if err != nil {
 		slack.Sendf(":sos: <!channel> Uable to fully start vili, couldn't add listner to watcher %s.", hostname)
 		log.Fatal(err)
 	}
-	defer watcher.RemoveWatch(wd)
+	defer watcher.RemoveWatch(wd.Path())
 	go func() {
 		for {
 			select {
