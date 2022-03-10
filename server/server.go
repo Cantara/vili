@@ -71,7 +71,10 @@ func Initialize(workingDir fslib.Dir, of chan<- fslib.Dir, portrangeFrom, portra
 	}
 	s.setAvailablePorts(portrangeFrom, portrangeTo)
 	go s.newServerWatcher(ctx)
-	s.startExcistingRunning()
+	err = s.startExcistingRunning()
+	if err != nil {
+		return
+	}
 	s.startExcistingTesting()
 	return
 }
