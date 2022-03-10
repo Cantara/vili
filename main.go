@@ -150,7 +150,7 @@ func main() {
 				go func() {
 					rNew, err := requestHandler(endpoint+":"+serv.GetPortTesting(), etv.request, serv, true)
 					if err != nil {
-						log.Println(err)
+						log.AddError(err).Warning("Error from testing server when verifying request")
 						return
 					}
 					defer rNew.Body.Close()
@@ -320,9 +320,11 @@ func reqHandler(serv server.Server, etv chan<- endpointToVerify) http.HandlerFun
 		rOld.Body.Close()
 		serv.AddRequestRunning()
 
-		etv <- endpointToVerify{
-			oldResponse: rOld,
-			request:     r,
+		if r.Method == "GET" || r.Method == "PUT" || r.Method == "PATCH" {
+			etv <- endpointToVerify{
+				oldResponse: rOld,
+				request:     r,
+			}
 		}
 	}
 }
@@ -374,7 +376,7 @@ func verifyNewResponse(r, t *http.Response) error { // Take inn responses
 	if r.StatusCode == t.StatusCode {
 		return nil
 	}
-	if r.StatusCode != http.StatusNotFound && t.StatusCode == http.StatusNotFound {
+	if r.StatusCode != http.StatusNotFound && t.StatusCode == http.StatusNotFound && r.Header.Get("content-type") != t.Header.Get("content-type") && (t.Header.Get("content-type") == "text/plain" || t.Header.Get("content-type") == "text/html") {
 		return fmt.Errorf("Missing endpoint")
 	}
 	return nil
