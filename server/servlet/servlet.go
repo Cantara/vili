@@ -17,9 +17,9 @@ import (
 	"github.com/cantara/vili/tail"
 )
 
-type Servlet struct {
-	Port     string
-	Dir      fslib.Dir
+type servlet struct {
+	port     string
+	dir      fslib.Dir
 	errors   uint64
 	warnings uint64
 	breaking uint64
@@ -28,41 +28,53 @@ type Servlet struct {
 	version  string
 	ctx      context.Context
 	once     sync.Once
-	Kill     func()
+	kill     func()
 }
 
-func (s Servlet) ReliabilityScore() float64 {
+func (s *servlet) Kill() {
+	s.kill()
+}
+
+func (s servlet) Dir() fslib.Dir {
+	return s.dir
+}
+
+func (s servlet) Port() string {
+	return s.port
+}
+
+func (s servlet) ReliabilityScore() float64 {
 	return math.Log2(float64(s.requests) - float64(s.breaking*100+s.errors*10+s.warnings))
 }
 
-func (s *Servlet) IncrementBreaking() {
+func (s *servlet) IncrementBreaking() {
 	atomic.AddUint64(&s.breaking, 1)
 }
 
-func (s *Servlet) IncrementErrors() {
+func (s *servlet) IncrementErrors() {
 	atomic.AddUint64(&s.errors, 1)
 }
 
-func (s *Servlet) IncrementWarnings() {
+func (s *servlet) IncrementWarnings() {
 	atomic.AddUint64(&s.warnings, 1)
 }
 
-func (s *Servlet) IncrementRequests() {
+func (s *servlet) IncrementRequests() {
 	atomic.AddUint64(&s.requests, 1)
 }
 
-func (s *Servlet) ResetTestData() {
+func (s *servlet) ResetTestData() {
 	atomic.StoreUint64(&s.warnings, 0)
 	atomic.StoreUint64(&s.errors, 0)
 	atomic.StoreUint64(&s.breaking, 0)
 	atomic.StoreUint64(&s.requests, 0)
 }
 
-func (s Servlet) IsRunning() bool {
+func (s servlet) IsRunning() bool {
 	return s.cmd.Process.Signal(syscall.Signal(0)) == nil
 }
 
-func NewServlet(servletDir fslib.Dir, port string) (servlet Servlet, err error) {
+func NewServlet(servletDir fslib.Dir, port string) (s *servlet, err error) {
 	stdOut, err := servletDir.Create("stdOut") //, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
 	if err != nil {
 		return
@@ -94,12 +106,12 @@ func NewServlet(servletDir fslib.Dir, port string) (servlet Servlet, err error) 
 		pid.Close()
 	}
 	time.Sleep(time.Second * 2) //Sleep an arbitrary amout of time so the service can start without getting any new request, this should not be needed
-	servlet = Servlet{
-		Port: port,
-		Dir:  servletDir,
+	s = &servlet{
+		port: port,
+		dir:  servletDir,
 		cmd:  cmd,
 		ctx:  ctx,
-		Kill: func() {
+		kill: func() {
 			err := cmd.Process.Kill() //.Signal(syscall.SIGTERM)
 			if err != nil {
 				log.Println(err)
@@ -113,7 +125,7 @@ func NewServlet(servletDir fslib.Dir, port string) (servlet Servlet, err error) 
 			stdErr.Close()
 		},
 	}
-	go servlet.parseLogServer(ctx)
+	go s.parseLogServer(ctx)
 	return
 }
 
@@ -121,7 +133,7 @@ type logData struct {
 	Level string `json:"level"`
 }
 
-func (servlet *Servlet) parseLogServer(ctx context.Context) {
+func (servlet *servlet) parseLogServer(ctx context.Context) {
 	lineChan, err := tail.File(fmt.Sprintf("%s/logs/json/%s.log", servlet.cmd.Dir, os.Getenv("identifier")), ctx)
 	if err != nil {
 		log.AddError(err).Error("While trying to tail log file") //TODO look into what can be done here

@@ -34,7 +34,7 @@ type commandData struct {
 	serverType typelib.ServerType
 }
 
-type Server struct {
+type server struct {
 	running        servletHandler
 	testing        servletHandler
 	availablePorts *list.List
@@ -45,7 +45,7 @@ type Server struct {
 }
 
 type servletHandler struct {
-	servlet    *servlet.Servlet
+	servlet    servlet.Servlet
 	mesureFrom time.Time
 	mutex      sync.Mutex
 	isDying    bool
@@ -53,9 +53,9 @@ type servletHandler struct {
 	dir        fslib.Dir
 }
 
-func Initialize(workingDir fslib.Dir, of chan<- fslib.Dir, portrangeFrom, portrangeTo int) (s Server, err error) {
+func Initialize(workingDir fslib.Dir, of chan<- fslib.Dir, portrangeFrom, portrangeTo int) (s *server, err error) {
 	ctx, cancel := context.WithCancel(context.Background())
-	s = Server{
+	s = &server{
 		running: servletHandler{
 			serverType: typelib.RUNNING,
 		},
@@ -73,7 +73,7 @@ func Initialize(workingDir fslib.Dir, of chan<- fslib.Dir, portrangeFrom, portra
 	return
 }
 
-func (s *Server) StartExcistingRunning() (err error) {
+func (s *server) startExcistingRunning() (err error) {
 	firstServerDir, err := fs.GetFirstServerDir(typelib.RUNNING)
 	if err != nil {
 		return
@@ -87,7 +87,7 @@ func (s *Server) StartExcistingRunning() (err error) {
 	return
 }
 
-func (s *Server) StartExcistingTesting() (err error) {
+func (s *server) startExcistingTesting() (err error) {
 	firstTestServerDir, err := fs.GetFirstServerDir(typelib.TESTING)
 	if err != nil {
 		return
@@ -103,7 +103,7 @@ func (s *Server) StartExcistingTesting() (err error) {
 	return
 }
 
-func (s *Server) newServerWatcher(ctx context.Context) {
+func (s *server) newServerWatcher(ctx context.Context) {
 	for {
 		select {
 		case command := <-s.serverCommands:
@@ -138,17 +138,17 @@ func (s *Server) newServerWatcher(ctx context.Context) {
 					continue
 				}
 
-				var oldServer *servlet.Servlet
+				var oldServer servlet.Servlet
 				switch command.serverType {
 				case typelib.RUNNING:
 					s.running.mutex.Lock()
-					oldServer, s.running.servlet = s.running.servlet, &serv
+					oldServer, s.running.servlet = s.running.servlet, serv
 					s.running.dir = command.serverDir
 					s.running.isDying = false
 					s.running.mutex.Unlock()
 				case typelib.TESTING:
 					s.testing.mutex.Lock()
-					oldServer, s.testing.servlet = s.testing.servlet, &serv
+					oldServer, s.testing.servlet = s.testing.servlet, serv
 					s.testing.dir = command.serverDir
 					s.testing.isDying = false
 					s.testing.mutex.Unlock()
@@ -216,86 +216,87 @@ func (s *Server) newServerWatcher(ctx context.Context) {
 	}
 }
 
-func (s *Server) NewTesting(server string) {
+func (s *server) NewTesting(server string) {
 	s.serverCommands <- commandData{command: newServer, server: server}
 }
 
-func (s *Server) Deploy() {
+func (s *server) Deploy() {
 	s.serverCommands <- commandData{command: deployServer}
 }
 
-func (s *Server) Restart(t typelib.ServerType) {
-	//s.serverCommands <- commandData{command: restartServer, serverType: t}
+func (s *server) RestartRunning() {
+	//s.serverCommands <- commandData{command: restartServer, serverType: typelib.RUNNING}
 }
 
-func (s *Server) newVersion(server string, t typelib.ServerType) {
+func (s *server) RestartTesting() {
+	//s.serverCommands <- commandData{command: restartServer, serverType: typelib.TESTING}
+}
+
+func (s *server) newVersion(server string, t typelib.ServerType) {
 	s.serverCommands <- commandData{command: newService, server: server, serverType: t}
 }
 
-func (s *Server) startService(serverDir fslib.Dir, t typelib.ServerType) {
+func (s *server) startService(serverDir fslib.Dir, t typelib.ServerType) {
 	s.serverCommands <- commandData{command: startServer, serverDir: serverDir, serverType: t}
 }
 
-func (s Server) reliabilityScore() float64 {
+func (s server) reliabilityScore() float64 {
 	if s.TestingDuration() < time.Minute*1 {
 		return -1
 	}
 	return s.testing.servlet.ReliabilityScore() - s.running.servlet.ReliabilityScore()
 }
 
-func (s *Server) watchServerStatus(t typelib.ServerType, serv *servlet.Servlet) {
+func (s *server) watchServerStatus(t typelib.ServerType, serv servlet.Servlet) {
 	//sleepInterval := 1
 	for {
 		time.Sleep(1 * time.Minute)
 		if !serv.IsRunning() {
-			s.Restart(t)
+			switch t {
+			case typelib.RUNNING:
+				s.RestartRunning()
+			case typelib.TESTING:
+				s.RestartTesting()
+			}
 			return
 		}
 	}
 }
 
-func (s Server) GetRunningVersion() string {
+func (s server) GetRunningVersion() string {
 	if s.running.dir == nil {
 		return "unknown"
 	}
 	return s.running.dir.File().Name()
 }
 
-func (s Server) GetPort(t typelib.ServerType) string {
-	switch t {
-	case typelib.RUNNING:
-		return s.running.servlet.Port
-	case typelib.TESTING:
-		return s.testing.servlet.Port
-	}
-	return ""
+func (s server) GetPortRunning() string {
+	return s.running.servlet.Port()
 }
 
-func (s *Server) AddBreaking(t typelib.ServerType) {
-	switch t {
-	case typelib.RUNNING:
-		s.running.servlet.IncrementBreaking()
-	case typelib.TESTING:
-		s.testing.servlet.IncrementBreaking()
-	}
+func (s server) GetPortTesting() string {
+	return s.testing.servlet.Port()
 }
 
-func (s *Server) AddRequest(t typelib.ServerType) {
-	switch t {
-	case typelib.RUNNING:
-		s.running.servlet.IncrementRequests()
-	case typelib.TESTING:
-		s.testing.servlet.IncrementRequests()
-	}
+func (s *server) AddBreaking() {
+	s.testing.servlet.IncrementBreaking()
 }
 
-func (s *Server) HasTesting() bool {
+func (s *server) AddRequestRunning() {
+	s.running.servlet.IncrementRequests()
+}
+
+func (s *server) AddRequestTesting() {
+	s.testing.servlet.IncrementRequests()
+}
+
+func (s *server) HasTesting() bool {
 	s.testing.mutex.Lock()
 	defer s.testing.mutex.Unlock()
 	return s.testing.servlet != nil
 }
 
-func (s *Server) TestingDuration() time.Duration {
+func (s *server) TestingDuration() time.Duration {
 	s.testing.mutex.Lock()
 	defer s.testing.mutex.Unlock()
 	if s.testing.servlet == nil {
@@ -304,7 +305,7 @@ func (s *Server) TestingDuration() time.Duration {
 	return time.Now().Sub(s.testing.mesureFrom)
 }
 
-func (s *Server) Messuring() bool {
+func (s *server) Messuring() bool {
 	if s.testing.servlet == nil {
 		return false
 	}
@@ -313,7 +314,7 @@ func (s *Server) Messuring() bool {
 	return !s.testing.mesureFrom.IsZero()
 }
 
-func (s *Server) ResetTest() { //TODO: Make better
+func (s *server) ResetTest() { //TODO: Make better
 	if !s.HasTesting() {
 		return
 	}
@@ -327,13 +328,13 @@ func (s *Server) ResetTest() { //TODO: Make better
 	s.running.mutex.Unlock()
 }
 
-func (s Server) getAvailablePort() string {
+func (s server) getAvailablePort() string {
 	port := s.availablePorts.Front()
 	s.availablePorts.Remove(port)
 	return port.Value.(string)
 }
 
-func (s *Server) setAvailablePorts(from, to int) {
+func (s *server) setAvailablePorts(from, to int) {
 	if s.availablePorts != nil {
 		return
 	}
@@ -343,24 +344,22 @@ func (s *Server) setAvailablePorts(from, to int) {
 	}
 }
 
-func (s Server) IsRunning(t typelib.ServerType) bool {
-	switch t {
-	case typelib.RUNNING:
-		return s.running.servlet.IsRunning()
-	case typelib.TESTING:
-		if s.testing.servlet == nil {
-			return false
-		}
-		return s.testing.servlet.IsRunning()
-	}
-	return false
+func (s server) IsRunningRunning() bool {
+	return s.running.servlet.IsRunning()
 }
 
-func (s Server) HasRunning() bool {
+func (s server) IsTestingRunning() bool {
+	if s.testing.servlet == nil {
+		return false
+	}
+	return s.testing.servlet.IsRunning()
+}
+
+func (s server) HasRunning() bool {
 	return s.running.servlet != nil && s.running.dir != nil
 }
 
-func (s *Server) CheckReliability(hostname string) {
+func (s *server) CheckReliability(hostname string) {
 	log.Println("reliabilityScore of testingServer compared to runningServer: ", s.reliabilityScore())
 	if s.reliabilityScore() >= -0.25 {
 		s.testing.mutex.Lock()
@@ -376,7 +375,7 @@ func (s *Server) CheckReliability(hostname string) {
 	}
 }
 
-func (s *Server) Kill() {
+func (s *server) Kill() {
 	s.cancel()
 	s.testing.mutex.Lock()
 	if s.testing.servlet != nil {

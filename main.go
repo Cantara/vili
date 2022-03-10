@@ -140,14 +140,14 @@ func main() {
 		log.AddError(err).Fatal("While inizalicing server")
 	}
 	defer serv.Kill()
-	go slack.Sendf(" :white_check_mark: Vili startet initial services on host: %s, with running version %s.", hostname, serv.GetRunningVersion())
+	go slack.Sendf(" :white_check_mark: Vili started initial services on host: %s, with running version %s.", hostname, serv.GetRunningVersion())
 
 	go func() {
 		for {
 			etv := <-verifyChan
 			if serv.HasTesting() {
 				go func() {
-					rNew, err := requestHandler(endpoint+":"+serv.GetPort(typelib.TESTING), etv.request, &serv, true)
+					rNew, err := requestHandler(endpoint+":"+serv.GetPortTesting(), etv.request, serv, true)
 					if err != nil {
 						log.Println(err)
 						return
@@ -155,9 +155,9 @@ func main() {
 					defer rNew.Body.Close()
 					err = verifyNewResponse(etv.oldResponse, rNew)
 					if err != nil {
-						serv.AddBreaking(typelib.TESTING)
+						serv.AddBreaking()
 					}
-					serv.AddRequest(typelib.TESTING)
+					serv.AddRequestTesting()
 					serv.CheckReliability(hostname)
 					if time.Minute*10 <= serv.TestingDuration() {
 						serv.ResetTest()
@@ -241,7 +241,12 @@ func main() {
 				case "deploy":
 					serv.Deploy()
 				case "restart":
-					serv.Restart(typelib.FromString(vda.Server))
+					switch typelib.FromString(vda.Server) {
+					case typelib.RUNNING:
+						serv.RestartRunning()
+					case typelib.TESTING:
+						serv.RestartTesting()
+					}
 				}
 			}
 		}()
@@ -249,7 +254,7 @@ func main() {
 
 	s := &http.Server{
 		Addr:           ":" + os.Getenv("port"),
-		Handler:        http.HandlerFunc(reqHandler(&serv, verifyChan)),
+		Handler:        http.HandlerFunc(reqHandler(serv, verifyChan)),
 		ReadTimeout:    10 * time.Second,
 		WriteTimeout:   10 * time.Second,
 		MaxHeaderBytes: 1 << 20,
@@ -288,13 +293,13 @@ func post(uri string, data interface{}, out interface{}) (err error) {
 	return
 }
 
-func reqHandler(serv *server.Server, etv chan<- endpointToVerify) http.HandlerFunc { //TODO Remove dependencie on pointer
+func reqHandler(serv server.Server, etv chan<- endpointToVerify) http.HandlerFunc { //TODO Remove dependencie on pointer
 	return func(w http.ResponseWriter, r *http.Request) {
 		if !serv.HasRunning() {
 			log.Println("Missing running")
 			return
 		}
-		rOld, err := requestHandler(endpoint+":"+serv.GetPort(typelib.RUNNING), r, serv, false)
+		rOld, err := requestHandler(endpoint+":"+serv.GetPortRunning(), r, serv, false)
 		if err != nil {
 			log.AddError(err).Info("While proxying to running")
 			return
@@ -312,7 +317,7 @@ func reqHandler(serv *server.Server, etv chan<- endpointToVerify) http.HandlerFu
 		}
 		io.Copy(w, rOld.Body)
 		rOld.Body.Close()
-		serv.AddRequest(typelib.RUNNING)
+		serv.AddRequestRunning()
 
 		etv <- endpointToVerify{
 			oldResponse: rOld,
@@ -321,7 +326,7 @@ func reqHandler(serv *server.Server, etv chan<- endpointToVerify) http.HandlerFu
 	}
 }
 
-func requestHandler(host string, r *http.Request, serv *server.Server, test bool) (*http.Response, error) { // Return response
+func requestHandler(host string, r *http.Request, serv server.Server, test bool) (*http.Response, error) { // Return response
 	r.URL.Scheme = os.Getenv("scheme")
 	r.URL.Host = host
 	var body io.ReadCloser
@@ -352,12 +357,12 @@ func requestHandler(host string, r *http.Request, serv *server.Server, test bool
 		}
 	} else {
 		if !test {
-			if !serv.IsRunning(typelib.RUNNING) {
-				serv.Restart(typelib.RUNNING)
+			if !serv.IsRunningRunning() {
+				serv.RestartRunning()
 			}
 		} else {
-			if !serv.IsRunning(typelib.TESTING) {
-				serv.Restart(typelib.TESTING)
+			if !serv.IsTestingRunning() {
+				serv.RestartTesting()
 			}
 		}
 	}
