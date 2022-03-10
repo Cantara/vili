@@ -386,6 +386,10 @@ func (f file) IsDir() bool {
 	return f.isDir
 }
 
+func (f file) Parent() File {
+	return f.dir
+}
+
 func (f file) Sys() interface{} {
 	return nil //TODO: Not implemented
 }

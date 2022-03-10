@@ -27,6 +27,7 @@ type File interface {
 	Type() fs.FileMode
 	ModTime() time.Time
 	IsDir() bool
+	Parent() File
 	Sys() interface{}
 	Info() (fs.FileInfo, error)
 	Write([]byte) (int, error)

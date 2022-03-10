@@ -32,6 +32,7 @@ type commandData struct {
 	serverDir  fslib.Dir
 	command    commandType
 	serverType typelib.ServerType
+	errorChan  chan error
 }
 
 type server struct {
@@ -69,14 +70,16 @@ func Initialize(workingDir fslib.Dir, of chan<- fslib.Dir, portrangeFrom, portra
 		cancel:         cancel,
 	}
 	s.setAvailablePorts(portrangeFrom, portrangeTo)
-	s.startExcistingRunning()
 	go s.newServerWatcher(ctx)
+	s.startExcistingRunning()
+	s.startExcistingTesting()
 	return
 }
 
 func (s *server) startExcistingRunning() (err error) {
 	firstServerDir, err := fs.GetFirstServerDir(typelib.RUNNING)
 	if err != nil {
+		log.AddError(err).Debug("Finding first running server dir")
 		return
 	}
 	log.Debug(firstServerDir.Path())
@@ -89,8 +92,10 @@ func (s *server) startExcistingRunning() (err error) {
 }
 
 func (s *server) startExcistingTesting() (err error) {
+	log.Debug("Trying to find existing testing")
 	firstTestServerDir, err := fs.GetFirstServerDir(typelib.TESTING)
 	if err != nil {
+		log.AddError(err).Debug("Finding first testing server dir")
 		return
 	}
 	log.Debug(firstTestServerDir.Path())
@@ -113,9 +118,10 @@ func (s *server) newServerWatcher(ctx context.Context) {
 			log.Info("New command recieved")
 			switch command.command {
 			case newServer: //New servers are always testing
-				_, err := fs.CreateNewServerStructure(command.server)
+				serverDir, err := fs.CreateNewServerStructure(command.server)
 				if err != nil {
 					log.AddError(err).Error("Creatubg new server structure")
+					command.errorChan <- err
 					continue
 				}
 				var oldFolder fslib.Dir
@@ -125,56 +131,9 @@ func (s *server) newServerWatcher(ctx context.Context) {
 				if oldFolder != nil {
 					s.oldFolders <- oldFolder
 				}
-				//err = s.startService(path, typelib.TESTING)
+				command.errorChan <- s.startServiceFromWatcher(serverDir, typelib.TESTING)
 			case startServer:
-				log.Debug("Starting new server")
-				port := s.getAvailablePort()
-				servletDir, err := fs.CreateNewServerInstanceStructure(command.serverDir, command.serverType, port)
-				if err != nil {
-					log.AddError(err).Error("While creating servlet dir")
-					s.availablePorts.PushFront(port)
-					continue
-				}
-				log.Debug("Servlet dir created")
-
-				log.Debug("Starting servlet")
-				serv, err := servlet.NewServlet(servletDir, port)
-				if err != nil {
-					log.AddError(err).Error("While creating new servlet")
-					s.availablePorts.PushFront(port)
-					continue
-				}
-				log.Debug("Started servlet")
-
-				log.Debug("Adding servlet to server structure")
-				var oldServer servlet.Servlet
-				switch command.serverType {
-				case typelib.RUNNING:
-					s.running.mutex.Lock()
-					oldServer, s.running.servlet = s.running.servlet, serv
-					s.running.dir = command.serverDir
-					s.running.isDying = false
-					s.running.mutex.Unlock()
-				case typelib.TESTING:
-					s.testing.mutex.Lock()
-					oldServer, s.testing.servlet = s.testing.servlet, serv
-					s.testing.dir = command.serverDir
-					s.testing.isDying = false
-					s.testing.mutex.Unlock()
-				}
-				log.Debug("Done servlet to server structure")
-
-				log.Debug("Starting to symlink folders")
-				err = command.serverDir.Symlink(command.serverDir.File(), fmt.Sprintf("%s-%s", os.Getenv("identifier"), command.serverType.String()))
-				if oldServer != nil {
-					log.Debug("Killing old server")
-					oldServer.Kill()
-					s.availablePorts.PushFront(oldServer.Port)
-				}
-				log.Debug("Finished to symlink folders")
-				log.Debug("Restarting tests")
-				s.ResetTest()
-				//go s.watchServerStatus(t, &serv)
+				command.errorChan <- s.startServiceFromWatcher(command.serverDir, command.serverType)
 			case restartServer:
 				log.Info("RESTARTING ", command.serverType)
 				var err error
@@ -209,20 +168,23 @@ func (s *server) newServerWatcher(ctx context.Context) {
 				if s.testing.servlet == nil {
 					log.Info("Nothing to deploy")
 					s.testing.mutex.Unlock()
+					command.errorChan <- nil
 					return
 				}
-				//server := s.testing.dir
+				serverDir := s.testing.dir
 				s.testing.servlet.Kill()
-				s.availablePorts.PushFront(s.testing.servlet.Port)
+				s.availablePorts.PushFront(s.testing.servlet.Port())
 				s.testing.servlet = nil
 				s.testing.mutex.Unlock()
 
 				oldFolder := s.running.dir
-				/*err := s.startService(server, typelib.RUNNING)
+				err := s.startServiceFromWatcher(serverDir, typelib.RUNNING)
 				if err != nil {
 					log.AddError(err).Error("New server deployment")
-				}*/
+					command.errorChan <- err
+				}
 				s.oldFolders <- oldFolder
+				command.errorChan <- nil
 			}
 		case <-ctx.Done():
 			return
@@ -230,12 +192,70 @@ func (s *server) newServerWatcher(ctx context.Context) {
 	}
 }
 
-func (s *server) NewTesting(server string) {
-	s.serverCommands <- commandData{command: newServer, server: server}
+func (s *server) startServiceFromWatcher(serverDir fslib.Dir, t typelib.ServerType) (err error) {
+	log.Debug("Starting new server")
+	port := s.getAvailablePort()
+	servletDir, err := fs.CreateNewServerInstanceStructure(serverDir, t, port)
+	if err != nil {
+		log.AddError(err).Error("While creating servlet dir")
+		s.availablePorts.PushFront(port)
+		return err
+	}
+	log.Debug("Servlet dir created")
+
+	log.Debug("Starting servlet")
+	serv, err := servlet.NewServlet(servletDir, port)
+	if err != nil {
+		log.AddError(err).Error("While creating new servlet")
+		s.availablePorts.PushFront(port)
+		return err
+	}
+	log.Debug("Started servlet")
+
+	log.Debug("Adding servlet to server structure")
+	var oldServer servlet.Servlet
+	switch t {
+	case typelib.RUNNING:
+		s.running.mutex.Lock()
+		oldServer, s.running.servlet = s.running.servlet, serv
+		s.running.dir = serverDir
+		s.running.isDying = false
+		s.running.mutex.Unlock()
+	case typelib.TESTING:
+		s.testing.mutex.Lock()
+		oldServer, s.testing.servlet = s.testing.servlet, serv
+		s.testing.dir = serverDir
+		s.testing.isDying = false
+		s.testing.mutex.Unlock()
+	}
+	log.Debug("Done servlet to server structure")
+
+	log.Debug("Starting to symlink folders")
+	err = serverDir.Symlink(serverDir.File(), fmt.Sprintf("%s-%s", os.Getenv("identifier"), t.String()))
+	if oldServer != nil {
+		log.Debug("Killing old server")
+		oldServer.Kill()
+		s.availablePorts.PushFront(oldServer.Port())
+	}
+	log.Debug("Finished to symlink folders")
+	log.Debug("Restarting tests")
+	s.ResetTest()
+	//go s.watchServerStatus(t, &serv)
+	return nil
 }
 
-func (s *server) Deploy() {
-	s.serverCommands <- commandData{command: deployServer}
+func (s *server) NewTesting(server string) error {
+	errorChan := make(chan error, 1)
+	defer close(errorChan)
+	s.serverCommands <- commandData{command: newServer, server: server, errorChan: errorChan}
+	return <-errorChan
+}
+
+func (s *server) Deploy() error {
+	errorChan := make(chan error, 1)
+	defer close(errorChan)
+	s.serverCommands <- commandData{command: deployServer, errorChan: errorChan}
+	return <-errorChan
 }
 
 func (s *server) RestartRunning() {
@@ -250,8 +270,11 @@ func (s *server) newVersion(server string, t typelib.ServerType) {
 	s.serverCommands <- commandData{command: newService, server: server, serverType: t}
 }
 
-func (s *server) startService(serverDir fslib.Dir, t typelib.ServerType) {
-	s.serverCommands <- commandData{command: startServer, serverDir: serverDir, serverType: t}
+func (s *server) startService(serverDir fslib.Dir, t typelib.ServerType) error {
+	errorChan := make(chan error, 1)
+	defer close(errorChan)
+	s.serverCommands <- commandData{command: startServer, serverDir: serverDir, serverType: t, errorChan: errorChan}
+	return <-errorChan
 }
 
 func (s server) reliabilityScore() float64 {
@@ -282,6 +305,16 @@ func (s server) GetRunningVersion() string {
 		return "unknown"
 	}
 	return s.running.dir.File().Name()
+}
+
+func (s server) GetTestingVersion() string {
+	if !s.IsTestingRunning() {
+		return "none"
+	}
+	if s.testing.dir == nil {
+		return "unknown"
+	}
+	return s.testing.dir.File().Name()
 }
 
 func (s server) GetPortRunning() string {
@@ -383,7 +416,7 @@ func (s *server) CheckReliability(hostname string) {
 		}
 		s.testing.isDying = true
 		s.testing.mutex.Unlock()
-		go slack.Sendf(" :hourglass: Vili started switching to new version host: %s, new version %s.", hostname, s.GetRunningVersion())
+		go slack.Sendf(" :hourglass: Vili started switching to new version host: %s, from version %s to %s.", hostname, s.GetRunningVersion(), s.GetTestingVersion())
 		s.Deploy()
 		go slack.Sendf(" :+1:  Vili switch to new version complete on host: %s, version %s.", hostname, s.GetRunningVersion())
 	}

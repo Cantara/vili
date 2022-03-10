@@ -3,11 +3,12 @@ package server
 import "time"
 
 type Server interface {
-	NewTesting(string)
-	Deploy()
+	NewTesting(string) error
+	Deploy() error
 	RestartRunning()
 	RestartTesting()
 	GetRunningVersion() string
+	GetTestingVersion() string
 	GetPortRunning() string
 	GetPortTesting() string
 	AddBreaking()

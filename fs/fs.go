@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -47,7 +48,7 @@ func CreateNewServerInstanceStructure(serverDir fslib.Dir, t typelib.ServerType,
 	}
 	serverFile, err := serverDir.Find(outerServerFile.Name()) //Not totaly sure what to do with server here / what format i want server on etc
 	if err != nil {
-		err = fmt.Errorf("Server file does not excist in server folder, thus unable to create now instance structure: err(%v)", err)
+		err = fmt.Errorf("Server file does not excist in server folder, thus unable to create new instance structure: err(%v) %s", err, outerServerFile.Name())
 		return
 	}
 	newInstancePath := fmt.Sprintf("%s_%s", time.Now().Format("2006-01-02_15.04.05"), t) //, numRestartsOfType(server, t)+1)
@@ -75,6 +76,9 @@ func CreateNewServerInstanceStructure(serverDir fslib.Dir, t typelib.ServerType,
 	baseLogs := fmt.Sprintf("logs_%s-%s", os.Getenv("identifier"), t)
 	baseDir.Remove(baseLogs)
 	baseDir.Symlink(logs.BaseDir(), baseLogs)
+	baseVersion := fmt.Sprintf("%s-%s", os.Getenv("identifier"), t)
+	baseDir.Remove(baseVersion)
+	baseDir.Symlink(serverDir.BaseDir(), baseVersion)
 	instanceExecPath := fmt.Sprintf("%s/%s.jar", instanceDir.Path(), os.Getenv("identifier"))
 	err = serverDir.Symlink(serverFile, instanceExecPath)
 	if err != nil {
@@ -91,7 +95,7 @@ func CreateNewServerInstanceStructure(serverDir fslib.Dir, t typelib.ServerType,
 
 func GetFirstServerDir(t typelib.ServerType) (serverDir fslib.Dir, err error) {
 	fileName := fmt.Sprintf("%s-%s", os.Getenv("identifier"), t)
-	if baseDir.Exists(fileName) { // Might change this to do it manualy and actually check if it is a dir and so on.
+	if baseDir.Exists(fileName) {
 		name, err := baseDir.Readlink(fileName)
 		if err == nil {
 			serverDir, err = baseDir.Cd(name)
@@ -107,7 +111,8 @@ func GetFirstServerDir(t typelib.ServerType) (serverDir fslib.Dir, err error) {
 		err = fmt.Errorf("No server of type %s found.", t)
 		return
 	}*/
-	serverDir, err = baseDir.Cd(name.Path())
+	//serverDir, err = baseDir.Cd(name.Path())
+	serverDir = name
 	return
 }
 
@@ -127,7 +132,7 @@ func getNewestServerDir(t typelib.ServerType) (serverDir fslib.Dir, err error) {
 			continue
 		}
 		if file.IsDir() {
-			if timeDir.After(file.ModTime()) {
+			if nameDir != "" && isSemanticNewer("*.*.*", toVersion(file.Name()), toVersion(nameDir)) { //timeDir.After(file.ModTime()) {
 				continue
 			}
 			timeDir = file.ModTime()
@@ -222,4 +227,50 @@ func GetOldestFile(fsys fslib.Dir) string {
 		return nil
 	})
 	return oldestPath
+}
+
+func isSemanticNewer(filter string, p1, p2 string) bool {
+	log.Printf("Testing %s vs %s with filter %s\n", p1, p2, filter)
+	numLevels := 3
+	levels := strings.Split(filter, ".")
+	if len(levels) != numLevels {
+		log.Fatal("Invalid semantic filter, expecting *.*.*")
+	}
+	p1v := strings.Split(p1, ".")
+	if len(p1v) != numLevels {
+		log.Fatal("Invalid semantic version for arg 2, expecting *.*.*")
+	}
+	p2v := strings.Split(p2, ".")
+	if len(p2v) != numLevels {
+		log.Fatal("Invalid semantic version for arg 3, expecting *.*.*")
+	}
+	for i := 0; i < numLevels; i++ {
+		if levels[i] == "*" {
+			v1, err := strconv.Atoi(p1v[i])
+			if err != nil {
+				log.Fatal(err)
+			}
+			v2, err := strconv.Atoi(p2v[i])
+			if err != nil {
+				log.Fatal(err)
+			}
+			if v1 < v2 {
+				log.Printf("v1 < v2 = %d < %d", v1, v2)
+				return true
+			}
+			if v1 > v2 {
+				log.Printf("v1 > v2 = %d > %d", v1, v2)
+				return false
+			}
+		}
+	}
+	return false
+}
+
+func toVersion(fileName string) string {
+	fileName = strings.ReplaceAll(fileName, os.Getenv("identifier"), "")
+	fileName = strings.ReplaceAll(fileName, ".jar", "")
+	fileName = strings.TrimLeft(fileName, "-")
+	fileName = strings.Split(fileName, "-")[0]
+	return fileName
 }
