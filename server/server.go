@@ -421,7 +421,7 @@ func (s *server) CheckReliability(hostname string) {
 		s.testing.mutex.Unlock()
 		go slack.Sendf(" :hourglass: Vili started switching to new version host: %s, from version %s to %s.", hostname, s.GetRunningVersion(), s.GetTestingVersion())
 		s.Deploy()
-		go slack.Sendf(" :+1:  Vili switch to new version complete on host: %s, version %s.", hostname, s.GetRunningVersion())
+		go slack.Sendf(" :white_check_mark:  Vili switch to new version complete on host: %s, version %s.", hostname, s.GetRunningVersion())
 	}
 }
 
