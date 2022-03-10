@@ -94,7 +94,6 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	fs.Initialize(&wd)
 	archiveDir, err := wd.Cd("archive")
 	if err != nil {
 		if !errors.Is(err, stdFs.ErrNotExist) {

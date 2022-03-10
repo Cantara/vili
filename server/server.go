@@ -54,6 +54,7 @@ type servletHandler struct {
 }
 
 func Initialize(workingDir fslib.Dir, of chan<- fslib.Dir, portrangeFrom, portrangeTo int) (s *server, err error) {
+	fs.Initialize(workingDir)
 	ctx, cancel := context.WithCancel(context.Background())
 	s = &server{
 		running: servletHandler{
