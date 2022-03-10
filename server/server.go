@@ -68,7 +68,7 @@ func Initialize(workingDir fslib.Dir, of chan<- fslib.Dir, portrangeFrom, portra
 		cancel:         cancel,
 	}
 	s.setAvailablePorts(portrangeFrom, portrangeTo)
-
+	s.startExcistingRunning()
 	go s.newServerWatcher(ctx)
 	return
 }
@@ -104,7 +104,9 @@ func (s *server) startExcistingTesting() (err error) {
 }
 
 func (s *server) newServerWatcher(ctx context.Context) {
+	log.Debug("Server command watcher started")
 	for {
+		log.Debug("Server command watcher loop start")
 		select {
 		case command := <-s.serverCommands:
 			log.Info("New command recieved")
@@ -124,20 +126,26 @@ func (s *server) newServerWatcher(ctx context.Context) {
 				}
 				//err = s.startService(path, typelib.TESTING)
 			case startServer:
+				log.Debug("Starting new server")
 				port := s.getAvailablePort()
-				newPath, err := fs.CreateNewServerInstanceStructure(command.serverDir, command.serverType, port)
+				servletDir, err := fs.CreateNewServerInstanceStructure(command.serverDir, command.serverType, port)
 				if err != nil {
+					log.AddError(err).Error("While creating servlet dir")
 					s.availablePorts.PushFront(port)
 					continue
 				}
+				log.Debug("Servlet dir created")
 
-				serv, err := servlet.NewServlet(newPath, port)
+				log.Debug("Starting servlet")
+				serv, err := servlet.NewServlet(servletDir, port)
 				if err != nil {
-					log.AddError(err).Warning("While creating new server")
+					log.AddError(err).Error("While creating new servlet")
 					s.availablePorts.PushFront(port)
 					continue
 				}
+				log.Debug("Started servlet")
 
+				log.Debug("Adding servlet to server structure")
 				var oldServer servlet.Servlet
 				switch command.serverType {
 				case typelib.RUNNING:
@@ -153,12 +161,17 @@ func (s *server) newServerWatcher(ctx context.Context) {
 					s.testing.isDying = false
 					s.testing.mutex.Unlock()
 				}
+				log.Debug("Done servlet to server structure")
 
+				log.Debug("Starting to symlink folders")
 				err = command.serverDir.Symlink(command.serverDir.File(), fmt.Sprintf("%s-%s", os.Getenv("identifier"), command.serverType.String()))
 				if oldServer != nil {
+					log.Debug("Killing old server")
 					oldServer.Kill()
 					s.availablePorts.PushFront(oldServer.Port)
 				}
+				log.Debug("Finished to symlink folders")
+				log.Debug("Restarting tests")
 				s.ResetTest()
 				//go s.watchServerStatus(t, &serv)
 			case restartServer:

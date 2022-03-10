@@ -78,6 +78,7 @@ func main() {
 		log.StartRotate(done)
 		defer close(done)
 	}
+	log.Debug("Log initialized")
 	err := verifyConfig()
 	if err != nil {
 		log.Fatal(err)
@@ -93,6 +94,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	fs.Initialize(&wd)
 	archiveDir, err := wd.Cd("archive")
 	if err != nil {
 		if !errors.Is(err, stdFs.ErrNotExist) {

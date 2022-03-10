@@ -22,6 +22,10 @@ func stripJar(s string) string {
 
 var baseDir fslib.Dir
 
+func Initialize(dir fslib.Dir) {
+	baseDir = dir
+}
+
 func CreateNewServerStructure(server string) (newDir fslib.Dir, err error) {
 	newDir, err = baseDir.Mkdir(stripJar(server), 0755)
 	if err != nil {
