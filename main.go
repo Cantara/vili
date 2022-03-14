@@ -161,6 +161,7 @@ func main() {
 					serv.AddRequestTesting()
 					serv.CheckReliability(hostname)
 					if time.Minute*10 <= serv.TestingDuration() {
+						go slack.Sendf(" :recycle: :clock12: Vili restarting test on host: %s, with running version %s and testing version %s after %s.", hostname, serv.GetRunningVersion(), serv.GetTestingVersion(), serv.TestingDuration())
 						serv.ResetTest()
 					}
 				}()
