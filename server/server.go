@@ -411,7 +411,7 @@ func (s server) HasRunning() bool {
 
 func (s *server) CheckReliability(hostname string) {
 	log.Println("reliabilityScore of testingServer compared to runningServer: ", s.reliabilityScore())
-	if s.reliabilityScore() >= -0.25 {
+	if s.reliabilityScore() >= -1.25 {
 		s.testing.mutex.Lock()
 		if s.testing.isDying || s.testing.servlet == nil {
 			s.testing.mutex.Unlock()
