@@ -281,7 +281,7 @@ func (s *server) startService(serverDir fslib.Dir, t typelib.ServerType) error {
 }
 
 func (s server) reliabilityScore() float64 {
-	if s.TestingDuration() < time.Minute*1 {
+	if s.TestingDuration() < time.Minute*5 {
 		return -1
 	}
 	return s.testing.servlet.ReliabilityScore() - s.running.servlet.ReliabilityScore()
