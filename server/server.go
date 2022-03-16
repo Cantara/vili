@@ -413,6 +413,7 @@ func (s *server) CheckReliability(hostname string) {
 	score, err := s.ReliabilityScore()
 	if err != nil {
 		log.AddError(err).Debug("While checking reliability")
+		return
 	}
 	log.Println("reliabilityScore of testingServer compared to runningServer: ", score)
 	if score >= -50 {
