@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"math"
 	"os"
 	"os/exec"
 	"sync"
@@ -20,10 +19,10 @@ import (
 type servlet struct {
 	port     string
 	dir      fslib.Dir
-	errors   uint64
-	warnings uint64
-	breaking uint64
-	requests uint64
+	errors   int64
+	warnings int64
+	breaking int64
+	requests int64
 	cmd      *exec.Cmd
 	version  string
 	ctx      context.Context
@@ -43,31 +42,31 @@ func (s servlet) Port() string {
 	return s.port
 }
 
-func (s servlet) ReliabilityScore() float64 {
-	return math.Log2(float64(s.requests) - float64(s.breaking*100+s.errors*10+s.warnings))
+func (s servlet) ReliabilityScore() int64 {
+	return s.requests - s.breaking*100 - s.errors*10 - s.warnings
 }
 
 func (s *servlet) IncrementBreaking() {
-	atomic.AddUint64(&s.breaking, 1)
+	atomic.AddInt64(&s.breaking, 1)
 }
 
 func (s *servlet) IncrementErrors() {
-	atomic.AddUint64(&s.errors, 1)
+	atomic.AddInt64(&s.errors, 1)
 }
 
 func (s *servlet) IncrementWarnings() {
-	atomic.AddUint64(&s.warnings, 1)
+	atomic.AddInt64(&s.warnings, 1)
 }
 
 func (s *servlet) IncrementRequests() {
-	atomic.AddUint64(&s.requests, 1)
+	atomic.AddInt64(&s.requests, 1)
 }
 
 func (s *servlet) ResetTestData() {
-	atomic.StoreUint64(&s.warnings, 0)
-	atomic.StoreUint64(&s.errors, 0)
-	atomic.StoreUint64(&s.breaking, 0)
-	atomic.StoreUint64(&s.requests, 0)
+	atomic.StoreInt64(&s.warnings, 0)
+	atomic.StoreInt64(&s.errors, 0)
+	atomic.StoreInt64(&s.breaking, 0)
+	atomic.StoreInt64(&s.requests, 0)
 }
 
 func (s servlet) IsRunning() bool {

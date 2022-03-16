@@ -280,11 +280,11 @@ func (s *server) startService(serverDir fslib.Dir, t typelib.ServerType) error {
 	return <-errorChan
 }
 
-func (s server) ReliabilityScore() float64 {
+func (s server) ReliabilityScore() (int64, error) {
 	if s.TestingDuration() < time.Minute*5 {
-		return -10000
+		return 0, fmt.Errorf("Testduration does not exceed minimum test time")
 	}
-	return s.testing.servlet.ReliabilityScore() - s.running.servlet.ReliabilityScore()
+	return s.running.servlet.ReliabilityScore() - s.testing.servlet.ReliabilityScore(), nil
 }
 
 func (s *server) watchServerStatus(t typelib.ServerType, serv servlet.Servlet) {
@@ -410,8 +410,12 @@ func (s server) HasRunning() bool {
 }
 
 func (s *server) CheckReliability(hostname string) {
-	log.Println("reliabilityScore of testingServer compared to runningServer: ", s.ReliabilityScore())
-	if s.ReliabilityScore() >= -1.25 {
+	score, err := s.ReliabilityScore()
+	if err != nil {
+		log.AddError(err).Debug("While checking reliability")
+	}
+	log.Println("reliabilityScore of testingServer compared to runningServer: ", score)
+	if score >= -50 {
 		s.testing.mutex.Lock()
 		if s.testing.isDying || s.testing.servlet == nil {
 			s.testing.mutex.Unlock()

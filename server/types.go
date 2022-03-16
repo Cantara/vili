@@ -22,6 +22,6 @@ type Server interface {
 	IsRunningRunning() bool
 	IsTestingRunning() bool
 	CheckReliability(string)
-	ReliabilityScore() float64
+	ReliabilityScore() (int64, error)
 	Kill()
 }

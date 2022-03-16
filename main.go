@@ -161,8 +161,12 @@ func main() {
 					serv.AddRequestTesting()
 					serv.CheckReliability(hostname)
 					if time.Minute*15 <= serv.TestingDuration() {
-						go slack.Sendf(" :recycle: :clock12: Vili restarting test on host: %s, with running version %s and testing version %s after %s with reliabily score %f.",
-							hostname, serv.GetRunningVersion(), serv.GetTestingVersion(), serv.TestingDuration(), serv.ReliabilityScore())
+						score, err := serv.ReliabilityScore()
+						if err != nil {
+							log.AddError(err).Debug("While checking reliability")
+						}
+						go slack.Sendf(" :recycle: :clock12: Vili restarting test on host: %s, with running version %s and testing version %s after %s with reliabily score %d(%v).",
+							hostname, serv.GetRunningVersion(), serv.GetTestingVersion(), serv.TestingDuration(), score, err)
 						serv.ResetTest()
 					}
 				}()

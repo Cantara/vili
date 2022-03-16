@@ -3,7 +3,7 @@ package servlet
 import "github.com/cantara/vili/fslib"
 
 type Servlet interface {
-	ReliabilityScore() float64
+	ReliabilityScore() int64
 	IncrementBreaking()
 	IncrementErrors()
 	IncrementWarnings()
