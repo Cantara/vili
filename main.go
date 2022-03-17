@@ -191,7 +191,7 @@ func main() {
 			select {
 			case ev := <-watcher.Event:
 				log.Println("event:", ev)
-				path := strings.Split(ev.Name, "/")
+				path := strings.Split(ev.Name, "/") //TODO: figure out why this can nil refferance
 				name := strings.ToLower(path[len(path)-1])
 				identifier := strings.ToLower(os.Getenv("identifier"))
 				if !strings.HasSuffix(name, ".jar") {
@@ -311,11 +311,15 @@ func reqHandler(serv server.Server, etv chan<- endpointToVerify) http.HandlerFun
 			log.AddError(err).Info("While proxying to running")
 			return
 		}
+		headers := ""
 		for key, vals := range rOld.Header {
+			headers += "\n key: " + key
 			for _, val := range vals {
 				w.Header().Add(key, val)
+				headers += " " + val + ","
 			}
 		}
+		fmt.Println("Headers: ", headers)
 		w.WriteHeader(rOld.StatusCode)
 		for key, vals := range rOld.Trailer {
 			for _, val := range vals {
@@ -346,6 +350,7 @@ func requestHandler(host string, r *http.Request, serv server.Server, test bool)
 		Method: r.Method,
 		URL:    r.URL, //strings.Replace(*r.URL, strings.Split(*r.URL, "/")[0], endpoint),
 		Body:   body,
+		Header: r.Header,
 		//		ContentLenght:    r.ContentLenght,
 		TransferEncoding: r.TransferEncoding,
 		Close:            true,
@@ -355,6 +360,7 @@ func requestHandler(host string, r *http.Request, serv server.Server, test bool)
 		MultipartForm:    r.MultipartForm,
 		Trailer:          r.Trailer,
 	}
+	fmt.Println(req)
 	resp, e := (&http.Client{}).Do(req)
 	if e == nil {
 		prefix := "[DEP]"
