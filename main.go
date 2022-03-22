@@ -206,7 +206,7 @@ func main() {
 				if name == serv.GetRunningVersion() {
 					continue
 				}
-				time.Sleep(time.Second * 2) //Sleep an arbitrary amout of time so the file is done writing before we try to execute it
+				time.Sleep(time.Second * 10) //Sleep an arbitrary amout of time so the file is done writing before we try to execute it
 				go slack.Sendf(" :mailbox_with_mail: :clock12: New version found, downloaded and deployed, running version is: %s, starting to test version %s.", serv.GetRunningVersion(), name)
 				serv.NewTesting(ev.Name)
 			case err := <-watcher.Error:
