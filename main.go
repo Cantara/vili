@@ -343,13 +343,17 @@ func reqHandler(serv server.Server, etv chan<- endpointToVerify) http.HandlerFun
 func requestHandler(host string, r *http.Request, serv server.Server, test bool) (*http.Response, error) { // Return response
 	r.URL.Scheme = os.Getenv("scheme")
 	r.URL.Host = host
-	contents, _ := ioutil.ReadAll(r.Body)
-	log.Info("Request: %s", string(contents))
-	r.Body = ioutil.NopCloser(bytes.NewReader(contents))
+	var body io.ReadCloser
+	if r.Body != nil {
+		contents, _ := ioutil.ReadAll(r.Body)
+		log.Info("Request: %s", string(contents))
+		r.Body = ioutil.NopCloser(bytes.NewReader(contents))
+		body = ioutil.NopCloser(bytes.NewReader(contents))
+	}
 	req := &http.Request{
 		Method: r.Method,
 		URL:    r.URL, //strings.Replace(*r.URL, strings.Split(*r.URL, "/")[0], endpoint),
-		Body:   ioutil.NopCloser(bytes.NewReader(contents)),
+		Body:   body,
 		Header: r.Header,
 		//		ContentLenght:    r.ContentLenght,
 		TransferEncoding: r.TransferEncoding,
