@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	stdFs "io/fs"
+	"io/ioutil"
 	"net/http"
 	"os"
 	"strconv"
@@ -306,13 +307,13 @@ func reqHandler(serv server.Server, etv chan<- endpointToVerify) http.HandlerFun
 			log.Println("Missing running")
 			return
 		}
-		rOld, err := requestHandler(endpoint+":"+serv.GetPortRunning(), r, serv, false)
+		respDep, err := requestHandler(endpoint+":"+serv.GetPortRunning(), r, serv, false)
 		if err != nil {
 			log.AddError(err).Info("While proxying to running")
 			return
 		}
 		headers := ""
-		for key, vals := range rOld.Header {
+		for key, vals := range respDep.Header {
 			headers += "\n key: " + key
 			for _, val := range vals {
 				w.Header().Add(key, val)
@@ -320,19 +321,19 @@ func reqHandler(serv server.Server, etv chan<- endpointToVerify) http.HandlerFun
 			}
 		}
 		fmt.Println("Headers: ", headers)
-		w.WriteHeader(rOld.StatusCode)
-		for key, vals := range rOld.Trailer {
+		w.WriteHeader(respDep.StatusCode)
+		for key, vals := range respDep.Trailer {
 			for _, val := range vals {
 				w.Header().Add(key, val)
 			}
 		}
-		io.Copy(w, rOld.Body)
-		rOld.Body.Close()
+		io.Copy(w, respDep.Body)
+		respDep.Body.Close()
 		serv.AddRequestRunning()
 
 		if r.Method == "GET" || r.Method == "PUT" || r.Method == "PATCH" {
 			etv <- endpointToVerify{
-				oldResponse: rOld,
+				oldResponse: respDep,
 				request:     r,
 			}
 		}
@@ -342,14 +343,13 @@ func reqHandler(serv server.Server, etv chan<- endpointToVerify) http.HandlerFun
 func requestHandler(host string, r *http.Request, serv server.Server, test bool) (*http.Response, error) { // Return response
 	r.URL.Scheme = os.Getenv("scheme")
 	r.URL.Host = host
-	var body io.ReadCloser
-	if r.GetBody != nil {
-		body, _ = r.GetBody()
-	}
+	contents, _ := ioutil.ReadAll(r.Body)
+	log.Info("Request: %s", string(contents))
+	r.Body = ioutil.NopCloser(bytes.NewReader(contents))
 	req := &http.Request{
 		Method: r.Method,
 		URL:    r.URL, //strings.Replace(*r.URL, strings.Split(*r.URL, "/")[0], endpoint),
-		Body:   body,
+		Body:   ioutil.NopCloser(bytes.NewReader(contents)),
 		Header: r.Header,
 		//		ContentLenght:    r.ContentLenght,
 		TransferEncoding: r.TransferEncoding,
