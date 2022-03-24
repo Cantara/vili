@@ -346,9 +346,11 @@ func requestHandler(host string, r *http.Request, serv server.Server, test bool)
 	var body io.ReadCloser
 	if r.Body != nil {
 		contents, _ := ioutil.ReadAll(r.Body)
-		log.Info("Request: %s", string(contents))
-		r.Body = ioutil.NopCloser(bytes.NewReader(contents))
-		body = ioutil.NopCloser(bytes.NewReader(contents))
+		if len(contents) > 0 {
+			log.Info("Request: ", string(contents))
+			r.Body = ioutil.NopCloser(bytes.NewReader(contents))
+			body = ioutil.NopCloser(bytes.NewReader(contents))
+		}
 	}
 	req := &http.Request{
 		Method: r.Method,
