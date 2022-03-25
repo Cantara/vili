@@ -243,7 +243,9 @@ func (s *server) startServiceFromWatcher(serverDir fslib.Dir, t typelib.ServerTy
 	log.Debug("Finished to symlink folders")
 	log.Debug("Restarting tests")
 	s.ResetTest()
-	//go s.watchServerStatus(t, &serv)
+	if t == typelib.RUNNING {
+		go s.watchServerStatus(t, serv)
+	}
 	return nil
 }
 
@@ -294,7 +296,8 @@ func (s *server) watchServerStatus(t typelib.ServerType, serv servlet.Servlet) {
 		if !serv.IsRunning() {
 			switch t {
 			case typelib.RUNNING:
-				s.RestartRunning()
+				//s.RestartRunning()
+				s.serverCommands <- commandData{command: restartServer, serverType: typelib.RUNNING}
 			case typelib.TESTING:
 				s.RestartTesting()
 			}
