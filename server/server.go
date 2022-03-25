@@ -150,7 +150,7 @@ func (s *server) newServerWatcher(ctx context.Context) {
 					s.running.isDying = true
 					s.running.mutex.Unlock()
 
-					//err = s.startService(s.running.dir, command.serverType)
+					command.errorChan <- s.startServiceFromWatcher(s.running.dir, command.serverType)
 				case typelib.TESTING:
 					s.testing.mutex.Lock()
 					if s.testing.isDying || s.testing.servlet == nil {
@@ -160,7 +160,7 @@ func (s *server) newServerWatcher(ctx context.Context) {
 					s.testing.isDying = true
 					s.testing.mutex.Unlock()
 
-					//err = s.startService(s.testing.dir, command.serverType)
+					command.errorChan <- s.startServiceFromWatcher(s.testing.dir, command.serverType)
 				}
 				if err != nil {
 					log.AddError(err).Error("Restarting server ", command.serverType)
