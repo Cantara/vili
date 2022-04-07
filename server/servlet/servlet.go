@@ -34,6 +34,10 @@ func (s *servlet) Kill() {
 	s.kill()
 }
 
+func (s *servlet) Wait() {
+	s.cmd.Wait()
+}
+
 func (s servlet) Dir() fslib.Dir {
 	return s.dir
 }
@@ -70,6 +74,8 @@ func (s *servlet) ResetTestData() {
 }
 
 func (s servlet) IsRunning() bool {
+	log.Debug(s.cmd.Process.Pid)
+	log.Debug(s.cmd)
 	return s.cmd.Process.Signal(syscall.Signal(0)) == nil
 }
 

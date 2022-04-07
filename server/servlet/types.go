@@ -11,6 +11,7 @@ type Servlet interface {
 	ResetTestData()
 	IsRunning() bool
 	Kill()
+	Wait()
 	Dir() fslib.Dir
 	Port() string
 }

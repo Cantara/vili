@@ -290,20 +290,34 @@ func (s server) ReliabilityScore() (int64, error) {
 }
 
 func (s *server) watchServerStatus(t typelib.ServerType, serv servlet.Servlet) {
-	//sleepInterval := 1
-	for {
-		time.Sleep(1 * time.Minute)
-		if !serv.IsRunning() {
-			switch t {
-			case typelib.RUNNING:
-				//s.RestartRunning()
-				s.serverCommands <- commandData{command: restartServer, serverType: typelib.RUNNING}
-			case typelib.TESTING:
-				s.RestartTesting()
-			}
-			return
-		}
+	serv.Wait()
+	switch t {
+	case typelib.RUNNING:
+		//s.RestartRunning()
+		s.serverCommands <- commandData{command: restartServer, serverType: typelib.RUNNING}
+	case typelib.TESTING:
+		s.RestartTesting()
 	}
+	/*
+		//sleepInterval := 1
+		for {
+			log.Debug("Starting watcher sleep")
+			time.Sleep(1 * time.Minute)
+			log.Debug("Ending watcher sleep")
+			if !serv.IsRunning() {
+				log.Info("Service is down")
+				go slack.Sendf("Stuff is down")
+				switch t {
+				case typelib.RUNNING:
+					//s.RestartRunning()
+					s.serverCommands <- commandData{command: restartServer, serverType: typelib.RUNNING}
+				case typelib.TESTING:
+					s.RestartTesting()
+				}
+				return
+			}
+		}
+	*/
 }
 
 func (s server) GetRunningVersion() string {
