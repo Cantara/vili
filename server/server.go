@@ -161,10 +161,12 @@ func (s *server) newServerWatcher(ctx context.Context) {
 					s.testing.mutex.Unlock()
 
 					command.errorChan <- s.startServiceFromWatcher(s.testing.dir, command.serverType)
-					go slack.Sendf(" :recycle: Vili restarted server on host: %s, version %s.", "<tmp unavailable>", s.GetRunningVersion())
 				}
 				if err != nil {
 					log.AddError(err).Error("Restarting server ", command.serverType)
+					go slack.Sendf(" :recycle: :x: Vili failed to restart servlet on host: %s, version %s.", "<tmp unavailable>", s.GetRunningVersion())
+				} else {
+					go slack.Sendf(" :recycle: Vili restarted servlet on host: %s, version %s.", "<tmp unavailable>", s.GetRunningVersion())
 				}
 			case deployServer:
 				log.Info("DEPLOYING NEW RUNNING SERVER")
