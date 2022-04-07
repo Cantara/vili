@@ -142,24 +142,26 @@ func (s *server) newServerWatcher(ctx context.Context) {
 				var err error
 				switch command.serverType {
 				case typelib.RUNNING:
-					s.running.mutex.Lock()
-					if s.running.isDying {
+					/*
+						s.running.mutex.Lock()
+						if s.running.isDying {
+							s.running.mutex.Unlock()
+							continue
+						}
+						s.running.isDying = true
 						s.running.mutex.Unlock()
-						continue
-					}
-					s.running.isDying = true
-					s.running.mutex.Unlock()
-
+					*/
 					command.errorChan <- s.startServiceFromWatcher(s.running.dir, command.serverType)
 				case typelib.TESTING:
-					s.testing.mutex.Lock()
-					if s.testing.isDying || s.testing.servlet == nil {
+					/*
+						s.testing.mutex.Lock()
+						if s.testing.isDying || s.testing.servlet == nil {
+							s.testing.mutex.Unlock()
+							continue
+						}
+						s.testing.isDying = true
 						s.testing.mutex.Unlock()
-						continue
-					}
-					s.testing.isDying = true
-					s.testing.mutex.Unlock()
-
+					*/
 					command.errorChan <- s.startServiceFromWatcher(s.testing.dir, command.serverType)
 				}
 				if err != nil {
