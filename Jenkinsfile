@@ -4,7 +4,7 @@ def release = false
 pipeline {
     agent any
     tools {
-        go 'Go 1.17'
+        go 'Go 1.21'
     }
     environment {
         NEXUS_CREDS = credentials('Cantara-NEXUS')

@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	stdFs "io/fs"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"strconv"
@@ -345,11 +344,11 @@ func requestHandler(host string, r *http.Request, serv server.Server, test bool)
 	r.URL.Host = host
 	var body io.ReadCloser
 	if r.Body != nil {
-		contents, _ := ioutil.ReadAll(r.Body)
+		contents, _ := io.ReadAll(r.Body)
 		if len(contents) > 0 {
 			log.Info("Request: ", string(contents))
-			r.Body = ioutil.NopCloser(bytes.NewReader(contents))
-			body = ioutil.NopCloser(bytes.NewReader(contents))
+			r.Body = io.NopCloser(bytes.NewReader(contents))
+			body = io.NopCloser(bytes.NewReader(contents))
 		}
 	}
 	req := &http.Request{
