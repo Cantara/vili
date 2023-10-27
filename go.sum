@@ -1,5 +1,7 @@
 github.com/cantara/bragi v0.7.2 h1:jKDxuRSessMqYUjIU+mKr9FQ5RwhUiIGVWK3FdbyTD4=
 github.com/cantara/bragi v0.7.2/go.mod h1:btpJS4I5xGUohgnno50o8XD1qysPjozSrUzDjWr2W6Q=
+github.com/cantara/bragi v0.7.3 h1:qcxC6LBg/qx6AXfgshrfTfPYnNHy20y9xjt3m96Ia2g=
+github.com/cantara/bragi v0.7.3/go.mod h1:btpJS4I5xGUohgnno50o8XD1qysPjozSrUzDjWr2W6Q=
 github.com/joho/godotenv v1.5.1 h1:7eLL/+HRGLY0ldzfGMeQkb7vMd0as4CfYvUVzLqw0N0=
 github.com/joho/godotenv v1.5.1/go.mod h1:f4LDr5Voq0i2e/R5DDNOoa2zzDfwtkZa6DnEwAbqwq4=
 k8s.io/utils v0.0.0-20230726121419-3b25d923346b h1:sgn3ZU783SCgtaSJjpcVVlRqd6GSnlTLKgpAAttJvpI=
