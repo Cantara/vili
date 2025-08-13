@@ -7,5 +7,5 @@ toolchain go1.25.0
 require (
 	github.com/cantara/bragi v0.8.0
 	github.com/joho/godotenv v1.5.1
-	k8s.io/utils v0.0.0-20241210054802-24370beab758
+	k8s.io/utils v0.0.0-20250604170112-4c0f3b243397
 )
