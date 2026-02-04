@@ -2,7 +2,7 @@ module github.com/cantara/vili
 
 go 1.23
 
-toolchain go1.25.6
+toolchain go1.25.7
 
 require (
 	github.com/cantara/bragi v0.8.0
