@@ -1,3 +1,17 @@
+kcp_version: "0.21"
+updated: "2026-06-20"
+language: en
+license: "Apache-2.0"
+indexing: private
+temporal:
+  valid_from: "2026-03-10"
+signing:
+  scheme: ed25519
+  scope: this-manifest
+  public_key: "MCowBQYDK2VwAyEAuipgusnqU9vjf3p2yPVLD/DmERT6tBbLOqEETdxAhMU="
+  signature: "https://raw.githubusercontent.com/Cantara/vili/main/knowledge.yaml.sig"
+not_for: []
+
 id: vili
 name: Vili
 version: 0.1.0
@@ -10,11 +24,20 @@ units:
     name: Test Runner
     type: component
     description: Live test execution engine — orchestrates test cases and collects pass/fail results.
+      content_hash:
+        algorithm: sha256
+        value: ""
   - id: http-tests
     name: HTTP Tests
     type: component
     description: HTTP endpoint test cases — sends real requests and asserts on response status and body.
+      content_hash:
+        algorithm: sha256
+        value: ""
   - id: reporter
     name: Reporter
     type: component
     description: Test result reporting — outputs structured results for CI consumption and human review.
+      content_hash:
+        algorithm: sha256
+        value: ""
