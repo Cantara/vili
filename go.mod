@@ -1,11 +1,9 @@
 module github.com/cantara/vili
 
-go 1.25
-
-toolchain go1.25.6
+go 1.26
 
 require (
 	github.com/cantara/bragi v0.8.0
 	github.com/joho/godotenv v1.5.1
-	k8s.io/utils v0.0.0-20260707023825-cf1189d6abe3
+	k8s.io/utils v0.0.0-20261023123148-ca04ba58ecab
 )
